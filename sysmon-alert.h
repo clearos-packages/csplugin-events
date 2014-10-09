@@ -17,10 +17,6 @@
 #ifndef _SYSMON_ALERT_H
 #define _SYSMON_ALERT_H
 
-#ifndef uint128_t
-#define uint128_t           unsigned __int128
-#endif
-
 class csSysMonAlert
 {
 public:
@@ -50,22 +46,28 @@ public:
         csAT_NULL           = 0,
     };
 
-    uint32_t GetId(void) { return id; }
-    time_t GetStamp(void) { return stamp; }
-    uint64_t GetFlags(void) { return flags; }
-    uint128_t GetType(void) { return type; }
-    uid_t GetUser(void) { return user; }
+    uint32_t GetId(void) const { return id; }
+    time_t GetStamp(void) const { return stamp; }
+    uint32_t GetFlags(void) const { return flags; }
+    uint32_t GetType(void) const { return type; }
+    uid_t GetUser(void) const { return user; }
     void GetGroups(vector<gid_t> &groups);
-    string GetUUID(void) { return uuid; };
-    string GetIcon(void) { return icon; };
-    string GetDescription(void) { return desc; };
+    string GetUUID(void) const { return uuid; };
+    const char *GetUUIDChar(void) const { return uuid.c_str(); };
+    int GetUUIDLength(void) const { return static_cast<int>(uuid.length()); };
+    string GetIcon(void) const { return icon; };
+    const char *GetIconChar(void) const { return icon.c_str(); };
+    int GetIconLength(void) const { return static_cast<int>(icon.length()); };
+    string GetDescription(void) const { return desc; };
+    const char *GetDescriptionChar(void) const { return desc.c_str(); };
+    int GetDescriptionLength(void) const { return static_cast<int>(desc.length()); };
 
     void SetId(uint32_t id) { this->id = id; };
     void SetStamp(void) { stamp = time(NULL); };
     void SetStamp(time_t stamp) { this->stamp = stamp; };
-    void SetFlags(uint128_t flags) { this->flags = flags; };
-    void SetFlag(uint128_t flag) { this->flags |= flag; };
-    void ClearFlag(uint128_t flag) { this->flags &= ~flag; };
+    void SetFlags(uint32_t flags) { this->flags = flags; };
+    void SetFlag(uint32_t flag) { this->flags |= flag; };
+    void ClearFlag(uint32_t flag) { this->flags &= ~flag; };
     void SetType(uint32_t type) { this->type = type; };
     void SetUser(uid_t uid) { this->user = uid; };
     void AddGroup(gid_t gid);
@@ -77,8 +79,8 @@ public:
 protected:
     uint32_t id;
     time_t stamp;
-    uint64_t flags;
-    uint128_t type;
+    uint32_t flags;
+    uint32_t type;
     uid_t user;
     vector<gid_t> groups;
     string uuid;

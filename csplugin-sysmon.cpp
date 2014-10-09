@@ -21,6 +21,10 @@
 #include <clearsync/csplugin.h>
 #include <clearsync/csselect.h>
 
+#include <sstream>
+
+#include <sqlite3.h>
+
 #include "sysmon-conf.h"
 #include "sysmon-alert.h"
 #include "sysmon-db.h"
@@ -29,10 +33,10 @@
 
 csPluginSysMon::csPluginSysMon(const string &name,
     csEventClient *parent, size_t stack_size)
-    : csPlugin(name, parent, stack_size), conf(NULL), sysmon_syslog(NULL)
+    : csPlugin(name, parent, stack_size),
+    sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL),
+    next_id(0)
 {
-    sysmon_syslog = new csSysMonSyslog(this, "/tmp/rsyslogd.sock");
-
     csLog::Log(csLog::Debug, "%s: Initialized.", name.c_str());
 }
 
@@ -40,24 +44,40 @@ csPluginSysMon::~csPluginSysMon()
 {
     Join();
 
-    if (conf) delete conf;
-    if (sysmon_syslog) delete sysmon_syslog;
+    if (sysmon_conf != NULL) delete sysmon_conf;
+    if (sysmon_db != NULL) delete sysmon_db;
+    if (sysmon_syslog != NULL) delete sysmon_syslog;
 }
 
 void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
 {
-    if (conf != NULL) delete conf;
+    if (sysmon_conf != NULL) delete sysmon_conf;
 
     csPluginXmlParser *parser = new csPluginXmlParser();
-    conf = new csSysMonConf(this, conf_filename.c_str(), parser);
-    parser->SetConf(dynamic_cast<csConf *>(conf));
-    conf->Reload();
+    sysmon_conf = new csSysMonConf(this, conf_filename.c_str(), parser);
+    parser->SetConf(dynamic_cast<csConf *>(sysmon_conf));
+    sysmon_conf->Reload();
+
+    if (sysmon_db != NULL) delete sysmon_db;
+    sysmon_db = new csSysMonDb_sqlite(sysmon_conf->GetSqliteDbFilename());
+    if (sysmon_syslog != NULL) delete sysmon_syslog;
+    sysmon_syslog = new csSysMonSyslog(this, sysmon_conf->GetSyslogSocketPath());
 }
 
 void *csPluginSysMon::Entry(void)
 {
     vector<string> syslog_messages;
     csLog::Log(csLog::Info, "%s: Running.", name.c_str());
+
+    try {
+        sysmon_db->Open();
+        sysmon_db->Create();
+        next_id = sysmon_db->GetMaxId() + 1;
+    }
+    catch (csSysMonDbException &e) {
+        csLog::Log(csLog::Error,
+            "%s: Database exception: %s", name.c_str(), e.estring.c_str());
+    }
 
     unsigned long loops = 0ul;
     GetStateVar("loops", loops);
@@ -79,13 +99,16 @@ void *csPluginSysMon::Entry(void)
             syslog_messages.clear();
             sysmon_syslog->Read(syslog_messages);
             for (vector<string>::iterator i = syslog_messages.begin();
-                i != syslog_messages.end(); i++)
+                i != syslog_messages.end(); i++) {
                 csLog::Log(csLog::Debug, (*i).c_str());
+                InsertAlert((*i));
+            }
             break;
 
         case csEVENT_TIMER:
             csLog::Log(csLog::Debug, "%s: Tick: %lu", name.c_str(),
                 static_cast<csEventTimer *>(event)->GetTimer()->GetId());
+            InsertAlert("Tick!");
             break;
         }
 
@@ -98,6 +121,23 @@ void *csPluginSysMon::Entry(void)
     csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
 
     return NULL;
+}
+
+void csPluginSysMon::InsertAlert(const string &desc)
+{
+    try {
+        csSysMonAlert alert;
+        alert.SetId(next_id++);
+        alert.SetStamp();
+        alert.SetDescription(desc);
+        sysmon_db->InsertAlert(alert);
+    }
+    catch (csSysMonDbException &e) {
+        csLog::Log(csLog::Error, "%s: Database exception: %s", name.c_str(), e.estring.c_str());
+    }
+    catch (csException &e) {
+        csLog::Log(csLog::Error, "%s: Database exception: %s", name.c_str(), e.estring.c_str());
+    }
 }
 
 csPluginInit(csPluginSysMon);

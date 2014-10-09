@@ -17,19 +17,71 @@
 #ifndef _SYSMON_DB_H
 #define _SYSMON_DB_H
 
+#define _SYSMON_DB_SQLITE_CREATE_ALERT  "CREATE TABLE IF NOT EXISTS alert(id INTEGER PRIMARY KEY NOT NULL, stamp INTEGER NOT NULL, flags INTEGER NOT NULL, type INTEGER NOT NULL, user INTEGER, uuid TEXT, icon TEXT, desc TEXT NOT NULL);"
+#define _SYSMON_DB_SQLITE_CREATE_GROUP  "CREATE TABLE IF NOT EXISTS groups(id INTEGER NOT NULL, gid INTEGER NOT NULL);"
+#define _SYSMON_DB_SQLITE_SELECT_MAX_ID "SELECT MAX(id) AS max_id FROM alert;"
+#define _SYSMON_DB_SQLITE_INSERT_ALERT  "INSERT INTO alert VALUES(@id, @stamp, @flags, @type, @user, @uuid, @icon, @desc);"
+
+class csSysMonDbException : public csException
+{
+public:
+    explicit csSysMonDbException(int e, const char *s)
+        : csException(e, s) { }
+};
+
 class csSysMonDb
 {
 public:
-    csSysMonDb();
-    virtual ~csSysMonDb();
-
     enum csDbType {
         csDBT_NULL,
         csDBT_SQLITE,
     };
 
+    csSysMonDb(csDbType type = csDBT_NULL);
+    virtual ~csSysMonDb() { }
+
+    virtual void Open(void) { }
+    virtual void Close(void) { }
+    virtual void Create(void) { }
+    virtual uint32_t GetMaxId(void) { return 0; }
+
+    virtual void SelectAlert(const csSysMonAlert &alert, off_t offset = 0, size_t length = 0) { }
+    virtual void InsertAlert(const csSysMonAlert &alert) { }
+    virtual void UpdateAlert(const csSysMonAlert &alert) { }
+    virtual void PurgeAlert(const csSysMonAlert &alert, time_t age) { }
+
 protected:
     csDbType type;
+};
+
+typedef map<string, string> csSysMonDb_sqlite_result;
+
+class csSysMonDb_sqlite : public csSysMonDb
+{
+public:
+    csSysMonDb_sqlite(const string &db_filename);
+    virtual ~csSysMonDb_sqlite() { Close(); };
+
+    void Open(void);
+    void Close(void);
+    void Create(void);
+    virtual uint32_t GetMaxId(void);
+
+    void SelectAlert(const csSysMonAlert &alert, off_t offset = 0, size_t length = 0);
+    void InsertAlert(const csSysMonAlert &alert);
+    void UpdateAlert(const csSysMonAlert &alert);
+    void PurgeAlert(const csSysMonAlert &alert, time_t age);
+
+protected:
+    void Exec(void);
+
+    sqlite3 *handle;
+    sqlite3_stmt *insert_alert;
+
+    string db_filename;
+    ostringstream sql;
+    ostringstream errstr;
+    csSysMonDb_sqlite_result result;
 };
 
 #endif // _SYSMON_DB_H

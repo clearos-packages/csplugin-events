@@ -20,36 +20,14 @@
 
 #include <clearsync/csplugin.h>
 
-#include "sysmon-alert.h"
+#include "sysmon-alert-source.h"
 
-csSysMonAlert::csSysMonAlert()
-    : id(0), stamp(0), flags(csAF_NULL), type(csAT_NULL), user(0)
-{
-    SetStamp();
-}
-
-csSysMonAlert::~csSysMonAlert()
+csSysMonAlertSource::csSysMonAlertSource()
 {
 }
 
-void csSysMonAlert::AddGroup(gid_t gid)
+csSysMonAlertSource::~csSysMonAlertSource()
 {
-    bool found = false;
-    for (vector<gid_t>::iterator i = groups.begin(); i != groups.end(); i++) {
-        if ((*i) != gid) continue;
-        found = true;
-        break;
-    }
-
-    if (!found) groups.push_back(gid);
-}
-
-void csSysMonAlert::GetGroups(vector<gid_t> &groups)
-{
-    groups.clear();
-    for (vector<gid_t>::iterator i = this->groups.begin(); i != groups.end(); i++) {
-        groups.push_back((*i));
-    }
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

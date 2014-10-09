@@ -31,8 +31,13 @@ public:
 protected:
     friend class csPluginXmlParser;
 
-    csSysMonConf *conf;
+    void InsertAlert(const string &desc);
+
+    csSysMonConf *sysmon_conf;
+    csSysMonDb *sysmon_db;
     csSysMonSyslog *sysmon_syslog;
+
+    uint32_t next_id;
 };
 
 #endif // _CSPLUGIN_SYSMON_H

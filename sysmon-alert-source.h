@@ -14,42 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#ifndef _SYSMON_ALERT_SOURCE_H
+#define _SYSMON_ALERT_SOURCE_H
 
-#include <clearsync/csplugin.h>
-
-#include "sysmon-alert.h"
-
-csSysMonAlert::csSysMonAlert()
-    : id(0), stamp(0), flags(csAF_NULL), type(csAT_NULL), user(0)
+class csSysMonAlertSource
 {
-    SetStamp();
-}
+public:
+    csSysMonAlertSource();
+    virtual ~csSysMonAlertSource();
 
-csSysMonAlert::~csSysMonAlert()
-{
-}
+    enum csAlertSourceType {
+        csAST_NULL,
+        csAST_SYSLOG,
+        csAST_SYSWATCH,
+    };
 
-void csSysMonAlert::AddGroup(gid_t gid)
-{
-    bool found = false;
-    for (vector<gid_t>::iterator i = groups.begin(); i != groups.end(); i++) {
-        if ((*i) != gid) continue;
-        found = true;
-        break;
-    }
+protected:
+};
 
-    if (!found) groups.push_back(gid);
-}
-
-void csSysMonAlert::GetGroups(vector<gid_t> &groups)
-{
-    groups.clear();
-    for (vector<gid_t>::iterator i = this->groups.begin(); i != groups.end(); i++) {
-        groups.push_back((*i));
-    }
-}
+#endif // _SYSMON_ALERT_SOURCE_H
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4
