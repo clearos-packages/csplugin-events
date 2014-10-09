@@ -30,4 +30,12 @@ csSysMonAlertSource::~csSysMonAlertSource()
 {
 }
 
+csSysMonAlertSource_syslog::csSysMonAlertSource_syslog()
+{
+}
+
+csSysMonAlertSource_syslog::~csSysMonAlertSource_syslog()
+{
+}
+
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

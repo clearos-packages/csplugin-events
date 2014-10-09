@@ -21,6 +21,8 @@ class csSysMonAlert
 {
 public:
     csSysMonAlert();
+    csSysMonAlert(uint32_t id, uint32_t flags, uint32_t type,
+        const string &uuid, const string &icon, const string &desc);
     virtual ~csSysMonAlert();
 
     enum csAlertFlags {

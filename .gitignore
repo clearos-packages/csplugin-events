@@ -1,7 +1,3 @@
-.deps/
-.libs/
-Makefile
-Makefile.in
 aclocal.m4
 autom4te.cache/
 config.guess
@@ -13,12 +9,17 @@ config.sub
 configure
 csplugin-sysmon.spec
 depcomp
+.deps/
 install-sh
 *.la
-*.lo
-*.o
+.libs/
 libtool
+*.lo
 ltmain.sh
 m4/
+Makefile
+Makefile.in
 missing
+*.o
 stamp-h1
+sysmonctl

@@ -1,4 +1,4 @@
-// ClearSync: System Monitor plugin.
+// ClearSync: System Monitor controller.
 // Copyright (C) 2011 ClearFoundation <http://www.clearfoundation.com>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,33 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef _SYSMON_ALERT_SOURCE_H
-#define _SYSMON_ALERT_SOURCE_H
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
-class csSysMonAlertSource
+#include <clearsync/csplugin.h>
+#include <clearsync/csselect.h>
+
+#include <sstream>
+
+#include <sqlite3.h>
+
+#include "sysmon-conf.h"
+#include "sysmon-alert.h"
+#include "sysmon-alert-source.h"
+#include "sysmon-db.h"
+#include "sysmon-syslog.h"
+#include "csplugin-sysmon.h"
+
+int main(int argc, char *argv[])
 {
-public:
-    csSysMonAlertSource();
-    virtual ~csSysMonAlertSource();
-
-    enum csAlertSourceType {
-        csAST_NULL,
-        csAST_SYSLOG,
-        csAST_SYSWATCH,
-    };
-
-protected:
-};
-
-class csSysMonAlertSource_syslog
-{
-public:
-    csSysMonAlertSource_syslog();
-    virtual ~csSysMonAlertSource_syslog();
-
-protected:
-};
-
-#endif // _SYSMON_ALERT_SOURCE_H
+    return 0;
+}
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

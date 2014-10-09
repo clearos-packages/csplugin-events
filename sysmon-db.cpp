@@ -58,7 +58,8 @@ static int csSysMonDb_sqlite_exec(void *param, int argc, char **argv, char **col
 }
 
 csSysMonDb_sqlite::csSysMonDb_sqlite(const string &db_filename)
-    : csSysMonDb(csDBT_SQLITE), handle(NULL), insert_alert(NULL), db_filename(db_filename)
+    : csSysMonDb(csDBT_SQLITE), handle(NULL), insert_alert(NULL),
+    purge_alerts(NULL), db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
 
@@ -80,6 +81,8 @@ void csSysMonDb_sqlite::Close(void)
         sqlite3_close(handle);
     if (insert_alert != NULL)
         sqlite3_finalize(insert_alert);
+    if (purge_alerts != NULL)
+        sqlite3_finalize(purge_alerts);
 }
 
 void csSysMonDb_sqlite::Create(void)
@@ -214,9 +217,48 @@ void csSysMonDb_sqlite::UpdateAlert(const csSysMonAlert &alert)
     csLog::Log(csLog::Debug, "%s:%d", __PRETTY_FUNCTION__, __LINE__);
 }
 
-void csSysMonDb_sqlite::PurgeAlert(const csSysMonAlert &alert, time_t age)
+void csSysMonDb_sqlite::PurgeAlerts(const csSysMonAlert &alert, time_t age)
 {
-    csLog::Log(csLog::Debug, "%s:%d", __PRETTY_FUNCTION__, __LINE__);
+    int rc, index = 0;
+
+    if (purge_alerts == NULL) {
+        rc = sqlite3_prepare_v2(handle,
+            _SYSMON_DB_SQLITE_PURGE_ALERTS,
+            strlen(_SYSMON_DB_SQLITE_PURGE_ALERTS) + 1,
+            &purge_alerts, NULL);
+        if (rc != SQLITE_OK)
+            throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    }
+    else sqlite3_reset(purge_alerts);
+
+    // Max age
+    index = sqlite3_bind_parameter_index(purge_alerts, "@max_age");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: max_age");
+    if ((rc = sqlite3_bind_int64(purge_alerts,
+        index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    // csAF_FLG_READ
+    index = sqlite3_bind_parameter_index(purge_alerts, "@csAF_FLG_READ");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_READ");
+    if ((rc = sqlite3_bind_int64(purge_alerts, index,
+        static_cast<sqlite3_int64>(csSysMonAlert::csAF_FLG_READ))) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    // csAF_FLG_PERSIST
+    index = sqlite3_bind_parameter_index(purge_alerts, "@csAF_FLG_PERSIST");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_PERSIST");
+    if ((rc = sqlite3_bind_int64(purge_alerts,
+        index, static_cast<sqlite3_int64>(csSysMonAlert::csAF_FLG_PERSIST))) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+
+    do {
+        rc = sqlite3_step(purge_alerts);
+    }
+    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+    if (rc == SQLITE_ERROR) {
+        rc = sqlite3_errcode(handle);
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    }
 }
 
 void csSysMonDb_sqlite::Exec(void)

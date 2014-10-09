@@ -21,6 +21,7 @@
 #define _SYSMON_DB_SQLITE_CREATE_GROUP  "CREATE TABLE IF NOT EXISTS groups(id INTEGER NOT NULL, gid INTEGER NOT NULL);"
 #define _SYSMON_DB_SQLITE_SELECT_MAX_ID "SELECT MAX(id) AS max_id FROM alert;"
 #define _SYSMON_DB_SQLITE_INSERT_ALERT  "INSERT INTO alert VALUES(@id, @stamp, @flags, @type, @user, @uuid, @icon, @desc);"
+#define _SYSMON_DB_SQLITE_PURGE_ALERTS  "DELETE FROM alert WHERE stamp < @max_age AND flags & @csAF_FLG_READ AND NOT flags & @csAF_FLG_PERSIST;"
 
 class csSysMonDbException : public csException
 {
@@ -48,7 +49,7 @@ public:
     virtual void SelectAlert(const csSysMonAlert &alert, off_t offset = 0, size_t length = 0) { }
     virtual void InsertAlert(const csSysMonAlert &alert) { }
     virtual void UpdateAlert(const csSysMonAlert &alert) { }
-    virtual void PurgeAlert(const csSysMonAlert &alert, time_t age) { }
+    virtual void PurgeAlerts(const csSysMonAlert &alert, time_t age) { }
 
 protected:
     csDbType type;
@@ -70,13 +71,14 @@ public:
     void SelectAlert(const csSysMonAlert &alert, off_t offset = 0, size_t length = 0);
     void InsertAlert(const csSysMonAlert &alert);
     void UpdateAlert(const csSysMonAlert &alert);
-    void PurgeAlert(const csSysMonAlert &alert, time_t age);
+    void PurgeAlerts(const csSysMonAlert &alert, time_t age);
 
 protected:
     void Exec(void);
 
     sqlite3 *handle;
     sqlite3_stmt *insert_alert;
+    sqlite3_stmt *purge_alerts;
 
     string db_filename;
     ostringstream sql;

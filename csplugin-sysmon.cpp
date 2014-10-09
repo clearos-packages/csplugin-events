@@ -27,6 +27,7 @@
 
 #include "sysmon-conf.h"
 #include "sysmon-alert.h"
+#include "sysmon-alert-source.h"
 #include "sysmon-db.h"
 #include "sysmon-syslog.h"
 #include "csplugin-sysmon.h"
@@ -79,14 +80,15 @@ void *csPluginSysMon::Entry(void)
             "%s: Database exception: %s", name.c_str(), e.estring.c_str());
     }
 
-    unsigned long loops = 0ul;
-    GetStateVar("loops", loops);
-    csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
+//    unsigned long loops = 0ul;
+//    GetStateVar("loops", loops);
+//    csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
 
-    csTimer *timer = new csTimer(500, 3, 3, this);
-    timer->Start();
+    csTimer *purge_timer = new csTimer(500, 3, 3, this);
+    purge_timer->Start();
 
-    for (bool run = true; run; loops++) {
+    bool run = true;
+    while (run) {
         csEvent *event = EventPopWait();
 
         switch (event->GetId()) {
@@ -106,19 +108,18 @@ void *csPluginSysMon::Entry(void)
             break;
 
         case csEVENT_TIMER:
-            csLog::Log(csLog::Debug, "%s: Tick: %lu", name.c_str(),
-                static_cast<csEventTimer *>(event)->GetTimer()->GetId());
-            InsertAlert("Tick!");
+            sysmon_db->PurgeAlerts(csSysMonAlert(),
+                time(NULL) - sysmon_conf->GetMaxAgeTTL());
             break;
         }
 
         EventDestroy(event);
     }
 
-    delete timer;
+    delete purge_timer;
 
-    SetStateVar("loops", loops);
-    csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
+//    SetStateVar("loops", loops);
+//    csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
 
     return NULL;
 }
@@ -128,8 +129,8 @@ void csPluginSysMon::InsertAlert(const string &desc)
     try {
         csSysMonAlert alert;
         alert.SetId(next_id++);
-        alert.SetStamp();
         alert.SetDescription(desc);
+        alert.SetFlag(csSysMonAlert::csAF_FLG_READ);
         sysmon_db->InsertAlert(alert);
     }
     catch (csSysMonDbException &e) {
