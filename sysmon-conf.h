@@ -47,11 +47,13 @@ public:
     virtual void Reload(void);
 
     time_t GetMaxAgeTTL(void) { return max_age_ttl; }
+    const string GetSysMonSocketPath(void) const { return sysmon_socket_path; }
     const string GetSqliteDbFilename(void) const { return sqlite_db_filename; }
     const string GetSyslogSocketPath(void) const { return syslog_socket_path; }
     const string GetSyswatchStatePath(void) const { return syswatch_state_path; }
     uint32_t GetAlertId(const string &type);
     string GetAlertType(uint32_t id);
+    void GetAlertTypes(csAlertIdMap &types);
 
 protected:
     friend class csPluginXmlParser;
@@ -59,6 +61,7 @@ protected:
     csPluginSysMon *parent;
 
     time_t max_age_ttl;
+    string sysmon_socket_path;
     string sqlite_db_filename;
     string syslog_socket_path;
     string syswatch_state_path;

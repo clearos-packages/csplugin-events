@@ -30,18 +30,18 @@ public:
 
         // Priority levels
         ////////////////////////////////////////
-        csAF_LVL_NORM       = 0x0000000000000001,
-        csAF_LVL_WARN       = 0x0000000000000002,
-        csAF_LVL_CRIT       = 0x0000000000000004,
+        csAF_LVL_NORM       = 0x00000001,
+        csAF_LVL_WARN       = 0x00000002,
+        csAF_LVL_CRIT       = 0x00000004,
 
         // Flags
         ////////////////////////////////////////
         // Alert is persistent / exclusive.
-        csAF_FLG_PERSIST    = 0x0000000000000100,
+        csAF_FLG_PERSIST    = 0x00000100,
         // Alert has been read / viewed.
-        csAF_FLG_READ       = 0x0000000000000200,
+        csAF_FLG_READ       = 0x00000200,
 
-        csAF_MAX            = 0xffffffffffffffff,
+        csAF_MAX            = 0xffffffff,
     };
 
     enum csAlertType {
@@ -71,6 +71,7 @@ public:
     void SetFlag(uint32_t flag) { this->flags |= flag; };
     void ClearFlag(uint32_t flag) { this->flags &= ~flag; };
     void SetType(uint32_t type) { this->type = type; };
+    void SetUser(const string &user);
     void SetUser(uid_t uid) { this->user = uid; };
     void AddGroup(gid_t gid);
     void ClearGroups(void) { groups.clear(); };

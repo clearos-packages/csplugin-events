@@ -52,6 +52,13 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 
         _conf->max_age_ttl = (time_t)atoi(tag->GetParamValue("max-age").c_str());
     }
+    else if ((*tag) == "ctl") {
+        if (!stack.size() || (*stack.back()) != "plugin")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("socket"))
+            ParseError("socket parameter missing");
+        _conf->sysmon_socket_path = tag->GetParamValue("socket");
+    }
     else if ((*tag) == "db") {
         if (!stack.size() || (*stack.back()) != "plugin")
             ParseError("unexpected tag: " + tag->GetName());
@@ -161,6 +168,13 @@ string csSysMonConf::GetAlertType(uint32_t id)
     if (i == alert_types.end())
         throw csException(ENOENT, "No such Alert ID");
     return i->second;
+}
+
+void csSysMonConf::GetAlertTypes(csAlertIdMap &types)
+{
+    types.clear();
+    for (csAlertIdMap::iterator i = alert_types.begin(); i != alert_types.end(); i++)
+        types[i->first] = i->second;
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

@@ -20,6 +20,8 @@
 
 #include <clearsync/csplugin.h>
 
+#include <pwd.h>
+
 #include "sysmon-alert.h"
 
 csSysMonAlert::csSysMonAlert()
@@ -59,6 +61,16 @@ void csSysMonAlert::GetGroups(vector<gid_t> &groups)
     for (vector<gid_t>::iterator i = this->groups.begin(); i != groups.end(); i++) {
         groups.push_back((*i));
     }
+}
+
+void csSysMonAlert::SetUser(const string &user)
+{
+    struct passwd *pwent = NULL;
+
+    pwent = getpwnam(user.c_str());
+    if (pwent == NULL)
+        throw csException(ENOENT, "User not found");
+    this->user = pwent->pw_uid;
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4
