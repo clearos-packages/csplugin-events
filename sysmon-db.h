@@ -17,10 +17,10 @@
 #ifndef _SYSMON_DB_H
 #define _SYSMON_DB_H
 
-#define _SYSMON_DB_SQLITE_CREATE_ALERT  "CREATE TABLE IF NOT EXISTS alert(id INTEGER PRIMARY KEY NOT NULL, stamp INTEGER NOT NULL, flags INTEGER NOT NULL, type INTEGER NOT NULL, user INTEGER, uuid TEXT, icon TEXT, desc TEXT NOT NULL);"
+#define _SYSMON_DB_SQLITE_CREATE_ALERT  "CREATE TABLE IF NOT EXISTS alert(id INTEGER PRIMARY KEY AUTOINCREMENT, stamp INTEGER NOT NULL, flags INTEGER NOT NULL, type INTEGER NOT NULL, user INTEGER, uuid TEXT, icon TEXT, desc TEXT NOT NULL);"
 #define _SYSMON_DB_SQLITE_CREATE_GROUP  "CREATE TABLE IF NOT EXISTS groups(id INTEGER NOT NULL, gid INTEGER NOT NULL);"
-#define _SYSMON_DB_SQLITE_SELECT_MAX_ID "SELECT MAX(id) AS max_id FROM alert;"
-#define _SYSMON_DB_SQLITE_INSERT_ALERT  "INSERT INTO alert VALUES(@id, @stamp, @flags, @type, @user, @uuid, @icon, @desc);"
+#define _SYSMON_DB_SQLITE_SELECT_LAST_ID "SELECT seq FROM sqlite_sequence WHERE name = @table_name;"
+#define _SYSMON_DB_SQLITE_INSERT_ALERT  "INSERT INTO alert (stamp, flags, type, user, uuid, icon, desc) VALUES(@stamp, @flags, @type, @user, @uuid, @icon, @desc);"
 #define _SYSMON_DB_SQLITE_PURGE_ALERTS  "DELETE FROM alert WHERE stamp < @max_age AND flags & @csAF_FLG_READ AND NOT flags & @csAF_FLG_PERSIST;"
 
 class csSysMonDbException : public csException
@@ -44,7 +44,8 @@ public:
     virtual void Open(void) { }
     virtual void Close(void) { }
     virtual void Create(void) { }
-    virtual uint32_t GetMaxId(void) { return 0; }
+    virtual void Drop(void) { }
+    virtual int64_t GetLastId(const string &table) { return 0; }
 
     virtual void SelectAlert(const csSysMonAlert &alert, off_t offset = 0, size_t length = 0) { }
     virtual void InsertAlert(const csSysMonAlert &alert) { }
@@ -66,7 +67,8 @@ public:
     void Open(void);
     void Close(void);
     void Create(void);
-    virtual uint32_t GetMaxId(void);
+    void Drop(void);
+    virtual int64_t GetLastId(const string &table);
 
     void SelectAlert(const csSysMonAlert &alert, off_t offset = 0, size_t length = 0);
     void InsertAlert(const csSysMonAlert &alert);
@@ -79,6 +81,7 @@ protected:
     sqlite3 *handle;
     sqlite3_stmt *insert_alert;
     sqlite3_stmt *purge_alerts;
+    sqlite3_stmt *last_id;
 
     string db_filename;
     ostringstream sql;

@@ -37,18 +37,6 @@ static void *csSysMonDb_sqlite_log(void *param, int i, const char *s)
     return NULL;
 }
 
-static int csSysMonDb_sqlite_maxid(void *param, int argc, char **argv, char **colname)
-{
-    uint32_t *max_id = static_cast<uint32_t *>(param);
-
-    if (max_id == NULL) return 0;
-    if (argc != 1) return 0;
-    if (strcmp(colname[0], "max_id")) return 0;
-    if (argv[0] != NULL) *max_id = (uint32_t)atoi(argv[0]);
-
-    return 0;
-}
-
 static int csSysMonDb_sqlite_exec(void *param, int argc, char **argv, char **colname)
 {
     for (int i = 0; i < argc; i++) {
@@ -59,7 +47,7 @@ static int csSysMonDb_sqlite_exec(void *param, int argc, char **argv, char **col
 
 csSysMonDb_sqlite::csSysMonDb_sqlite(const string &db_filename)
     : csSysMonDb(csDBT_SQLITE), handle(NULL), insert_alert(NULL),
-    purge_alerts(NULL), db_filename(db_filename)
+    purge_alerts(NULL), last_id(NULL), db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
 
@@ -83,6 +71,8 @@ void csSysMonDb_sqlite::Close(void)
         sqlite3_finalize(insert_alert);
     if (purge_alerts != NULL)
         sqlite3_finalize(purge_alerts);
+    if (last_id != NULL)
+        sqlite3_finalize(last_id);
 }
 
 void csSysMonDb_sqlite::Create(void)
@@ -95,29 +85,57 @@ void csSysMonDb_sqlite::Create(void)
     Exec();
 }
 
-uint32_t csSysMonDb_sqlite::GetMaxId(void)
+void csSysMonDb_sqlite::Drop(void)
 {
-//    csLog::Log(csLog::Debug, "%s:%d: %p: %s",
-//        __PRETTY_FUNCTION__, __LINE__, handle, sql.str().c_str());
-    char *es = NULL;
-    uint32_t max_id = 0;
-
     sql.str("");
-    sql << _SYSMON_DB_SQLITE_SELECT_MAX_ID;
+    sql << "DROP TABLE IF EXISTS alert;";
+    Exec();
+    sql.str("");
+    sql << "DROP TABLE IF EXISTS groups;";
+    Exec();
+}
 
-    int rc = sqlite3_exec(handle, sql.str().c_str(),
-        csSysMonDb_sqlite_maxid, (void *)&max_id, &es);
-    if (rc != SQLITE_OK) {
-        errstr.str("");
-        errstr << es;
-        sqlite3_free(es);
-        throw csSysMonDbException(rc, errstr.str().c_str());
+int64_t csSysMonDb_sqlite::GetLastId(const string &table)
+{
+    int64_t id = 0;
+    int rc, index = 0;
+
+    if (last_id == NULL) {
+        rc = sqlite3_prepare_v2(handle,
+            _SYSMON_DB_SQLITE_SELECT_LAST_ID,
+            strlen(_SYSMON_DB_SQLITE_SELECT_LAST_ID) + 1,
+            &last_id, NULL);
+        if (rc != SQLITE_OK)
+            throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    }
+    else sqlite3_reset(last_id);
+
+    // Table name
+    index = sqlite3_bind_parameter_index(last_id, "@table_name");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: table_name");
+    if ((rc = sqlite3_bind_text(last_id, index,
+        table.c_str(), table.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+
+    do {
+        rc = sqlite3_step(last_id);
+        csLog::Log(csLog::Debug, "%s:%d: %d", __PRETTY_FUNCTION__, __LINE__, rc);
+        if (rc == SQLITE_ROW) {
+            id = static_cast<int64_t>(sqlite3_column_int64(last_id, 0));
+            break;
+        }
+    }
+    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+    if (rc == SQLITE_ERROR) {
+        rc = sqlite3_errcode(handle);
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
     }
 
     csLog::Log(csLog::Debug, "%s:%d: %p: %d",
-        __PRETTY_FUNCTION__, __LINE__, handle, max_id);
+        __PRETTY_FUNCTION__, __LINE__, handle, id);
 
-    return max_id;
+    return id;
 }
 
 void csSysMonDb_sqlite::SelectAlert(const csSysMonAlert &alert, off_t offset, size_t length)
@@ -149,12 +167,6 @@ void csSysMonDb_sqlite::InsertAlert(const csSysMonAlert &alert)
     }
     else sqlite3_reset(insert_alert);
 
-    // ID
-    index = sqlite3_bind_parameter_index(insert_alert, "@id");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
-    if ((rc = sqlite3_bind_int64(insert_alert,
-        index, static_cast<sqlite3_int64>(alert.GetId()))) != SQLITE_OK)
-        throw csSysMonDbException(rc, sqlite3_errstr(rc));
     // Stamp
     index = sqlite3_bind_parameter_index(insert_alert, "@stamp");
     if (index == 0) throw csException(EINVAL, "SQL parameter missing: stamp");
@@ -201,6 +213,7 @@ void csSysMonDb_sqlite::InsertAlert(const csSysMonAlert &alert)
 
     do {
         rc = sqlite3_step(insert_alert);
+        csLog::Log(csLog::Debug, "%s:%d: %d", __PRETTY_FUNCTION__, __LINE__, rc);
     }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 

@@ -35,8 +35,7 @@
 csPluginSysMon::csPluginSysMon(const string &name,
     csEventClient *parent, size_t stack_size)
     : csPlugin(name, parent, stack_size),
-    sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL),
-    next_id(0)
+    sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL)
 {
     csLog::Log(csLog::Debug, "%s: Initialized.", name.c_str());
 }
@@ -72,8 +71,8 @@ void *csPluginSysMon::Entry(void)
 
     try {
         sysmon_db->Open();
+        sysmon_db->Drop();
         sysmon_db->Create();
-        next_id = sysmon_db->GetMaxId() + 1;
     }
     catch (csSysMonDbException &e) {
         csLog::Log(csLog::Error,
@@ -128,10 +127,10 @@ void csPluginSysMon::InsertAlert(const string &desc)
 {
     try {
         csSysMonAlert alert;
-        alert.SetId(next_id++);
         alert.SetDescription(desc);
         alert.SetFlag(csSysMonAlert::csAF_FLG_READ);
         sysmon_db->InsertAlert(alert);
+        alert.SetId(sysmon_db->GetLastId("alert"));
     }
     catch (csSysMonDbException &e) {
         csLog::Log(csLog::Error, "%s: Database exception: %s", name.c_str(), e.estring.c_str());

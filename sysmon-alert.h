@@ -48,7 +48,7 @@ public:
         csAT_NULL           = 0,
     };
 
-    uint32_t GetId(void) const { return id; }
+    int64_t GetId(void) const { return id; }
     time_t GetStamp(void) const { return stamp; }
     uint32_t GetFlags(void) const { return flags; }
     uint32_t GetType(void) const { return type; }
@@ -64,7 +64,7 @@ public:
     const char *GetDescriptionChar(void) const { return desc.c_str(); };
     int GetDescriptionLength(void) const { return static_cast<int>(desc.length()); };
 
-    void SetId(uint32_t id) { this->id = id; };
+    void SetId(int64_t id) { this->id = id; };
     void SetStamp(void) { stamp = time(NULL); };
     void SetStamp(time_t stamp) { this->stamp = stamp; };
     void SetFlags(uint32_t flags) { this->flags = flags; };
@@ -79,7 +79,7 @@ public:
     void SetDescription(const string &desc) { this->desc = desc; };
 
 protected:
-    uint32_t id;
+    int64_t id;
     time_t stamp;
     uint32_t flags;
     uint32_t type;
