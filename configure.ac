@@ -14,6 +14,8 @@ AC_PROG_INSTALL
 AM_PROG_LIBTOOL
 
 # Checks for libraries.
+AC_CHECK_LIB([sqlite3], [sqlite3_open], [], [
+        AC_MSG_ERROR([libsqlite3 not found but is required.])])
 
 # Checks for header files.
 AC_LANG_PUSH([C++])
