@@ -52,7 +52,7 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 
         _conf->max_age_ttl = (time_t)atoi(tag->GetParamValue("max-age").c_str());
     }
-    else if ((*tag) == "ctl") {
+    else if ((*tag) == "sysmonctl") {
         if (!stack.size() || (*stack.back()) != "plugin")
             ParseError("unexpected tag: " + tag->GetName());
         if (!tag->ParamExists("socket"))

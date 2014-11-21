@@ -20,10 +20,17 @@
 class csSysMonAlert
 {
 public:
-    csSysMonAlert();
-    csSysMonAlert(uint32_t id, uint32_t flags, uint32_t type,
-        const string &uuid, const string &icon, const string &desc);
-    virtual ~csSysMonAlert();
+    typedef struct {
+        int64_t id;
+        time_t stamp;
+        uint32_t flags;
+        uint32_t type;
+        uid_t user;
+        vector<gid_t> groups;
+        string uuid;
+        string icon;
+        string desc;
+    } csSysMonAlertData;
 
     enum csAlertFlags {
         csAF_NULL           = 0,
@@ -48,47 +55,51 @@ public:
         csAT_NULL           = 0,
     };
 
-    int64_t GetId(void) const { return id; }
-    time_t GetStamp(void) const { return stamp; }
-    uint32_t GetFlags(void) const { return flags; }
-    uint32_t GetType(void) const { return type; }
-    uid_t GetUser(void) const { return user; }
-    void GetGroups(vector<gid_t> &groups);
-    string GetUUID(void) const { return uuid; };
-    const char *GetUUIDChar(void) const { return uuid.c_str(); };
-    int GetUUIDLength(void) const { return static_cast<int>(uuid.length()); };
-    string GetIcon(void) const { return icon; };
-    const char *GetIconChar(void) const { return icon.c_str(); };
-    int GetIconLength(void) const { return static_cast<int>(icon.length()); };
-    string GetDescription(void) const { return desc; };
-    const char *GetDescriptionChar(void) const { return desc.c_str(); };
-    int GetDescriptionLength(void) const { return static_cast<int>(desc.length()); };
+    csSysMonAlert();
+    csSysMonAlert(uint32_t id, uint32_t flags, uint32_t type,
+        const string &uuid, const string &icon, const string &desc);
+    virtual ~csSysMonAlert();
 
-    void SetId(int64_t id) { this->id = id; };
-    void SetStamp(void) { stamp = time(NULL); };
-    void SetStamp(time_t stamp) { this->stamp = stamp; };
-    void SetFlags(uint32_t flags) { this->flags = flags; };
-    void SetFlag(uint32_t flag) { this->flags |= flag; };
-    void ClearFlag(uint32_t flag) { this->flags &= ~flag; };
-    void SetType(uint32_t type) { this->type = type; };
+    void Reset(void);
+
+    const csSysMonAlertData *GetDataPtr(void) const
+        { return (const csSysMonAlertData *)&data; }
+
+    int64_t GetId(void) const { return data.id; }
+    time_t GetStamp(void) const { return data.stamp; }
+    uint32_t GetFlags(void) const { return data.flags; }
+    uint32_t GetType(void) const { return data.type; }
+    uid_t GetUser(void) const { return data.user; }
+    void GetGroups(vector<gid_t> &groups);
+    string GetUUID(void) const { return data.uuid; };
+    const char *GetUUIDChar(void) const { return data.uuid.c_str(); };
+    int GetUUIDLength(void) const { return static_cast<int>(data.uuid.length()); };
+    string GetIcon(void) const { return data.icon; };
+    const char *GetIconChar(void) const { return data.icon.c_str(); };
+    int GetIconLength(void) const { return static_cast<int>(data.icon.length()); };
+    string GetDescription(void) const { return data.desc; };
+    const char *GetDescriptionChar(void) const { return data.desc.c_str(); };
+    int GetDescriptionLength(void) const { return static_cast<int>(data.desc.length()); };
+
+    void SetData(const csSysMonAlertData &data);
+
+    void SetId(int64_t id) { data.id = id; };
+    void SetStamp(void) { data.stamp = time(NULL); };
+    void SetStamp(time_t stamp) { data.stamp = stamp; };
+    void SetFlags(uint32_t flags) { data.flags = flags; };
+    void SetFlag(uint32_t flag) { data.flags |= flag; };
+    void ClearFlag(uint32_t flag) { data.flags &= ~flag; };
+    void SetType(uint32_t type) { data.type = type; };
     void SetUser(const string &user);
-    void SetUser(uid_t uid) { this->user = uid; };
+    void SetUser(uid_t uid) { data.user = uid; };
     void AddGroup(gid_t gid);
-    void ClearGroups(void) { groups.clear(); };
-    void SetUUID(const string &uuid) { this->uuid = uuid; };
-    void SetIcon(const string &icon) { this->icon = icon; };
-    void SetDescription(const string &desc) { this->desc = desc; };
+    void ClearGroups(void) { data.groups.clear(); };
+    void SetUUID(const string &uuid) { data.uuid = uuid; };
+    void SetIcon(const string &icon) { data.icon = icon; };
+    void SetDescription(const string &desc) { data.desc = desc; };
 
 protected:
-    int64_t id;
-    time_t stamp;
-    uint32_t flags;
-    uint32_t type;
-    uid_t user;
-    vector<gid_t> groups;
-    string uuid;
-    string icon;
-    string desc;
+    csSysMonAlertData data;
 };
 
 #endif // _SYSMON_ALERT_H

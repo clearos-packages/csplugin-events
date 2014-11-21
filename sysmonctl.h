@@ -17,7 +17,7 @@
 #ifndef _SYSMONCTL_H
 #define _SYSMONCTL_H
 
-class csSysMonCtl
+class csSysMonCtl : public csEventClient
 {
 public:
     enum csSysMonCtlMode
@@ -30,7 +30,7 @@ public:
     csSysMonCtl();
     virtual ~csSysMonCtl();
 
-    void Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type,
+    int Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type,
         const string &user, const string &uuid, const string &icon,
         ostringstream &desc);
 
@@ -38,6 +38,7 @@ protected:
     friend class csPluginXmlParser;
 
     csSysMonConf *sysmon_conf;
+    csSysMonSocketClient *sysmon_socket;
 };
 
 #endif // _CSPLUGIN_SYSMON_H

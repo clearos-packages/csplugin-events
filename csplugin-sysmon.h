@@ -17,6 +17,8 @@
 #ifndef _CSPLUGIN_SYSMON_H
 #define _CSPLUGIN_SYSMON_H
 
+typedef map<int, csSysMonSocketClient *> csPluginSysMonClientMap;
+
 class csPluginSysMon : public csPlugin
 {
 public:
@@ -31,11 +33,16 @@ public:
 protected:
     friend class csPluginXmlParser;
 
+    void ProcessEventSelect(fd_set &fds);
+    void ProcessClientRequest(csSysMonSocketClient *client);
+
     void InsertAlert(const string &desc);
 
     csSysMonConf *sysmon_conf;
     csSysMonDb *sysmon_db;
     csSysMonSyslog *sysmon_syslog;
+    csSysMonSocketServer *sysmon_socket_server;
+    csPluginSysMonClientMap sysmon_socket_client;
 };
 
 #endif // _CSPLUGIN_SYSMON_H

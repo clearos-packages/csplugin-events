@@ -18,6 +18,7 @@
 #define _SYSMON_CONF_H
 
 #define _SYSMON_CONF_SQLITE_DB      "/var/lib/csplugin-sysmon/sysmon.db"
+#define _SYSMON_CONF_SYSMON_SOCKET  "/var/lib/csplugin-sysmon/sysmon.socket"
 #define _SYSMON_CONF_SYSWATCH_STATE "/var/lib/syswatch/state"
 #define _SYSMON_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-sysmon/syslog.socket"
 
@@ -39,8 +40,9 @@ class csSysMonConf : public csConf
 public:
     csSysMonConf(csPluginSysMon *parent,
         const char *filename, csPluginXmlParser *parser)
-        : csConf(filename, parser), parent(parent),
-        max_age_ttl(0), sqlite_db_filename(_SYSMON_CONF_SQLITE_DB),
+        : csConf(filename, parser), parent(parent), max_age_ttl(0),
+        sysmon_socket_path(_SYSMON_CONF_SYSMON_SOCKET),
+        sqlite_db_filename(_SYSMON_CONF_SQLITE_DB),
         syslog_socket_path(_SYSMON_CONF_SYSLOG_SOCKET),
         syswatch_state_path(_SYSMON_CONF_SYSWATCH_STATE) { };
 

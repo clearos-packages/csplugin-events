@@ -19,13 +19,14 @@
 #endif
 
 #include <clearsync/csplugin.h>
-#include <clearsync/csselect.h>
 
 #include <iostream>
 #include <sstream>
 
 #include <unistd.h>
 #include <getopt.h>
+#include <fcntl.h>
+#include <linux/un.h>
 #include <sqlite3.h>
 
 #include "sysmon-conf.h"
@@ -187,15 +188,16 @@ int main(int argc, char *argv[])
         for (int i = optind + 1; i < argc; i++) alert_desc << " " << argv[i];
     }
 
-    sysmon_ctl.Exec(mode,
+    rc = sysmon_ctl.Exec(mode,
         alert_flags, alert_type, alert_user, alert_uuid, alert_icon, alert_desc);
 
     free(conf_filename);
 
-    return 0;
+    return rc;
 }
 
 csSysMonCtl::csSysMonCtl()
+    : sysmon_conf(NULL), sysmon_socket(NULL)
 {
     csPluginXmlParser *parser = new csPluginXmlParser();
     sysmon_conf = new csSysMonConf(NULL, conf_filename, parser);
@@ -205,10 +207,11 @@ csSysMonCtl::csSysMonCtl()
 
 csSysMonCtl::~csSysMonCtl()
 {
+    if (sysmon_socket) delete sysmon_socket;
     if (sysmon_conf) delete sysmon_conf;
 }
 
-void csSysMonCtl::Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type,
+int csSysMonCtl::Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type,
         const string &user, const string &uuid, const string &icon,
         ostringstream &desc)
 {
@@ -226,6 +229,24 @@ void csSysMonCtl::Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &typ
             if (uuid.length()) alert.SetUUID(uuid);
             if (icon.length()) alert.SetIcon(icon);
             if (desc.tellp()) alert.SetDescription(desc.str());
+
+            sysmon_socket = new csSysMonSocketClient(sysmon_conf->GetSysMonSocketPath());
+            sysmon_socket->Connect();
+            sysmon_socket->VersionExchange(false);
+
+            switch (sysmon_socket->ReadResult()) {
+            case csSMPR_OK:
+                csLog::Log(csLog::Debug, "Protocol version: OK");
+                break;
+            case csSMPR_VERSION_MISMATCH:
+                csLog::Log(csLog::Debug, "Protocol version: mis-match");
+                return 1;
+            }
+
+            sysmon_socket->ResetPacket();
+            sysmon_socket->WritePacketVar(alert);
+            sysmon_socket->WritePacket(csSMOC_ALERT_INSERT);
+
             break;
         case CTLM_LIST_TYPES:
             csLog::Log(csLog::Info, "Alert Types:");
@@ -233,10 +254,20 @@ void csSysMonCtl::Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &typ
             for (csAlertIdMap::iterator i = alert_types.begin(); i != alert_types.end(); i++)
                 csLog::Log(csLog::Info, "  %s", i->second.c_str());
             break;
-        };
+        default:
+            csLog::Log(csLog::Error, "Invalid mode or no mode specified.");
+            csLog::Log(csLog::Info, "Try --help for usage information.");
+            return 1;
+        }
+    } catch (csSysMonSocketException &e) {
+        csLog::Log(csLog::Error, "Exception: %s: %s", e.estring.c_str(), e.what());
+        return 1;
     } catch (csException &e) {
         csLog::Log(csLog::Error, "Exception: %s", e.estring.c_str());
+        return 1;
     }
+
+    return 0;
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

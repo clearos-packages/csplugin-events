@@ -23,12 +23,11 @@
 #include <linux/un.h>
 
 #include <clearsync/csplugin.h>
-#include <clearsync/csselect.h>
 
 #include "sysmon-syslog.h"
 
-csSysMonSyslog::csSysMonSyslog(csEventClient *parent, const string &socket_path)
-    : parent(parent), cs_select(NULL), rx_bufsize(0), buffer(NULL)
+csSysMonSyslog::csSysMonSyslog(const string &socket_path)
+    : rx_bufsize(0), buffer(NULL)
 {
     if ((sd = socket(PF_LOCAL, SOCK_DGRAM, 0)) < 0)
         throw csException(errno, "socket");
@@ -52,9 +51,6 @@ csSysMonSyslog::csSysMonSyslog(csEventClient *parent, const string &socket_path)
     if (fcntl(sd, F_SETFL, sd_flags | O_NONBLOCK) < 0)
         throw csException(errno, "fcntl(F_SETFL)");
 
-    cs_select = new csSelect(parent);
-    cs_select->Set(sd, csSelect::FDS_READ);
-
     socklen_t opt_len = sizeof(size_t);
     if (getsockopt(sd, SOL_SOCKET, SO_RCVBUF, (void *)&rx_bufsize, &opt_len) != 0)
         throw csException(errno, "getsockopt(SO_RCVBUF)");
@@ -67,23 +63,12 @@ csSysMonSyslog::csSysMonSyslog(csEventClient *parent, const string &socket_path)
 
 csSysMonSyslog::~csSysMonSyslog()
 {
-    if (sd >= 0 && cs_select != NULL) {
-        delete cs_select;
-        close(sd);
-    }
-
+    if (sd >= 0) close(sd);
     if (buffer != NULL) delete [] buffer;
 }
 
 void csSysMonSyslog::Read(vector<string> &messages)
 {
-    if (!cs_select->IsSet(sd, csSelect::FDS_READ)) {
-        csLog::Log(csLog::Debug, "Descriptor not set for read: %d", sd);
-        return;
-    }
-
-    cs_select->Pause();
-
     for ( ;; ) {
         memset(buffer, 0, rx_bufsize);
         ssize_t bytes = read(sd, (void *)buffer, rx_bufsize);
@@ -101,8 +86,6 @@ void csSysMonSyslog::Read(vector<string> &messages)
 
         messages.push_back(buffer);
     }
-
-    cs_select->Resume();
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

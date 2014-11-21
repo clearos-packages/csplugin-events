@@ -20,15 +20,14 @@
 class csSysMonSyslog
 {
 public:
-    csSysMonSyslog(csEventClient *parent, const string &socket_path);
+    csSysMonSyslog(const string &socket_path);
     virtual ~csSysMonSyslog();
 
+    int GetDescriptor(void) { return sd; }
     void Read(vector<string> &messages);
 
 protected:
     int sd;
-    csEventClient *parent;
-    csSelect *cs_select;
     size_t rx_bufsize;
     char *buffer;
 };
