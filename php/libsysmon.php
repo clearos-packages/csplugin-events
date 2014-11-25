@@ -3,10 +3,13 @@
 define('csSMOC_NULL', 0);
 define('csSMOC_VERSION', 1);
 define('csSMOC_ALERT_INSERT', 2);
-define('csSMOC_RESULT', 3);
+define('csSMOC_ALERT_SELECT', 3);
+define('csSMOC_ALERT_MARK_READ', 4);
+define('csSMOC_RESULT', 0xFF);
 
 define('csSMPR_OK', 0);
 define('csSMPR_VERSION_MISMATCH', 1);
+define('csSMPR_ALERT_MATCHES', 2);
 
 define('csAF_NULL', 0);
 define('csAF_LVL_NORM', 0x00000001);
@@ -14,7 +17,7 @@ define('csAF_LVL_WARN', 0x00000002);
 define('csAF_LVL_CRIT', 0x00000004);
 define('csAF_FLG_PERSIST', 0x00000100);
 define('csAF_FLG_READ', 0x00000200);
-define('csAF_MAX', 0xffffffff);
+define('csAF_MAX', 0xFFFFFFFF);
 
 define('csAT_NULL', 0);
 
@@ -30,7 +33,9 @@ class libSysMonAlert
     protected $groups;
     protected $uuid;
     protected $icon;
-    protected $description;
+    protected $desc;
+
+    protected static $field_sizes;
 
     public function __construct()
     {
@@ -48,6 +53,36 @@ class libSysMonAlert
         $this->uuid = null;
         $this->icon = null;
         $this->desc = null;
+    }
+
+    public static function init_field_sizes()
+    {
+        self::$field_sizes = array(
+            'id' => array('format' => 'NN', 'size' => 8),
+            'stamp' => array('format' => 'L', 'size' => 4),
+            'flags' => array('format' => 'L', 'size' => 4),
+            'type' => array('format' => 'L', 'size' => 4),
+            'user' => array('format' => 'L', 'size' => 4),
+            'group' => array('format' => 'L', 'size' => 4),
+            'groups' => array('format' => 'C', 'size' => 1),
+            'string' => array('format' => 'C', 'size' => 1),
+            'version' => array('format' => 'L', 'size' => 4),
+            'result' => array('format' => 'C', 'size' => 1),
+        );
+    }
+
+    public static function get_field_format($field)
+    {
+        if (! array_key_exists($field, self::$field_sizes))
+            throw new Exception("Unknown field name: $field");
+        return self::$field_sizes[$field]['format'];
+    }
+
+    public static function get_field_length($field)
+    {
+        if (! array_key_exists($field, self::$field_sizes))
+            throw new Exception("Unknown field name: $field");
+        return self::$field_sizes[$field]['size'];
     }
 
     public function get_id()
@@ -169,6 +204,8 @@ class libSysMonAlert
     }
 }
 
+libSysMonAlert::init_field_sizes();
+
 class libSysMonitor
 {
     const PATH_SOCKET = '/tmp/sysmonctl.socket';
@@ -176,11 +213,18 @@ class libSysMonitor
     protected $sd;
     protected $socket_path;
     protected $header;
+    protected $header_field_sizes;
     protected $payload;
     protected $payload_index;
 
     public function __construct($socket_path = self::PATH_SOCKET)
     {
+        $this->header_field_sizes = array(
+            'opcode' => array('format' => 'C', 'size' => 1),
+            'payload_length' => array('format' => 'L', 'size' => 4),
+            'result' => array('format' => 'C', 'size' => 1),
+        );
+
         $this->sd = socket_create(AF_UNIX, SOCK_STREAM, 0);
         if (! is_resource($this->sd))
             throw new Exception(socket_strerror(socket_last_error()));
@@ -208,10 +252,24 @@ class libSysMonitor
         $this->write_packet(csSMOC_ALERT_INSERT);
     }
 
+    protected function get_header_length($field)
+    {
+        if (! array_key_exists($field, $this->header_field_sizes))
+            throw new Exception("Unknown header field: $field");
+        return $this->header_field_sizes[$field]['size'];
+    }
+
+    protected function get_header_format($field)
+    {
+        if (! array_key_exists($field, $this->header_field_sizes))
+            throw new Exception("Unknown header field: $field");
+        return $this->header_field_sizes[$field]['format'];
+    }
+
     protected function version_exchange()
     {
         $this->reset_packet();
-        $this->write_packet_var(csSYSMON_PROTOVER, 'L', 4);
+        $this->write_packet_var(csSYSMON_PROTOVER, 'version');
         $this->write_packet(csSMOC_VERSION);
 
         if ($this->read_result() != csSMPR_OK) {
@@ -228,8 +286,11 @@ class libSysMonitor
         $this->payload_index = 0;
     }
 
-    protected function read_packet_var(&$v, $format, $length)
+    protected function read_packet_var(&$v, $field)
     {
+        $format = libSysMonAlert::get_field_format($field);
+        $length = libSysMonAlert::get_field_length($field);
+
         $u = unpack(
             $format,
             substr($this->payload, $this->payload_index, $length)
@@ -240,12 +301,16 @@ class libSysMonitor
 
     protected function read_packet_string(&$v)
     {
+        $format = libSysMonAlert::get_field_format('string');
+        $length = libSysMonAlert::get_field_length('string');
+
         $u = unpack(
-            'L',
-            substr($this->payload, $this->payload_index, 4)
+            $format,
+            substr($this->payload, $this->payload_index, $length)
         );
+        $this->payload_index += $length;
+
         $length = $u[1];
-        $this->payload_index += 4;
         if ($length == 0) $v = '';
         else {
             $v = substr($this->payload, $this->payload_index, $length);
@@ -257,30 +322,33 @@ class libSysMonitor
     {
         $v->reset();
 
+        $format = libSysMonAlert::get_field_format('id');
+        $length = libSysMonAlert::get_field_length('id');
+
         $u = unpack(
             'N2',
-            substr($this->payload, $this->payload_index, 8)
+            substr($this->payload, $this->payload_index, $length)
         );
         $v->set_id($u[1] << 32 | $u[2]);
-        $this->payload_index += 8;
+        $this->payload_index += $length;
 
-        $this->read_packet_var($u, 'L', 4);
+        $this->read_packet_var($u, 'stamp');
         $v->set_stamp($u);
 
-        $this->read_packet_var($u, 'L', 4);
+        $this->read_packet_var($u, 'flags');
         $v->set_flags($u);
 
-        $this->read_packet_var($u, 'L', 4);
+        $this->read_packet_var($u, 'type');
         $v->set_type($u);
 
-        $this->read_packet_var($u, 'L', 4);
+        $this->read_packet_var($u, 'user');
         $v->set_user($u);
 
-        $this->read_packet_var($u, 'L', 4);
+        $this->read_packet_var($u, 'groups');
 
         for ($i = 0; $i < $u; $i++) {
             $g = null;
-            $this->read_packet_var($g, 'L', 4);
+            $this->read_packet_var($g, 'group');
             $v->add_group($g);
         }
 
@@ -294,8 +362,11 @@ class libSysMonitor
         if (strlen($u)) $v->set_description($u);
     }
 
-    protected function write_packet_var($v, $format, $length)
+    protected function write_packet_var($v, $field)
     {
+        $format = libSysMonAlert::get_field_format($field);
+        $length = libSysMonAlert::get_field_length($field);
+
         $this->payload .= pack($format, $v);
         $this->payload_length += $length;
         $this->header['payload_length'] += $length;
@@ -303,8 +374,11 @@ class libSysMonitor
 
     protected function write_packet_string($v)
     {
-        $this->payload .= pack('L', strlen($v));
-        $this->header['payload_length'] += 4;
+        $format = libSysMonAlert::get_field_format('string');
+        $length = libSysMonAlert::get_field_length('string');
+
+        $this->payload .= pack($format, strlen($v));
+        $this->header['payload_length'] += $length;
         if (strlen($v) > 0) {
             $this->payload .= $v;
             $this->header['payload_length'] += strlen($v);
@@ -313,21 +387,24 @@ class libSysMonitor
 
     protected function write_packet_alert($v)
     {
+        $format = libSysMonAlert::get_field_format('id');
+        $length = libSysMonAlert::get_field_length('id');
+
         $hi = ($v->get_id() & 0xffffffff00000000) >> 32;
         $lo =  $v->get_id() & 0x00000000ffffffff;
 
-        $this->payload .= pack('NN', $hi, $lo);
-        $this->header['payload_length'] += 8;
+        $this->payload .= pack($format, $hi, $lo);
+        $this->header['payload_length'] += $length;
 
-        $this->write_packet_var($v->get_stamp(), 'L', 4);
-        $this->write_packet_var($v->get_flags(), 'L', 4);
-        $this->write_packet_var($v->get_type(), 'L', 4);
-        $this->write_packet_var($v->get_user(), 'L', 4);
+        $this->write_packet_var($v->get_stamp(), 'stamp');
+        $this->write_packet_var($v->get_flags(), 'flags');
+        $this->write_packet_var($v->get_type(), 'type');
+        $this->write_packet_var($v->get_user(), 'user');
 
         $groups = $v->get_groups();
-        $this->write_packet_var(count($groups), 'L', 4);
+        $this->write_packet_var(count($groups), 'groups');
         foreach ($groups as $group)
-            $this->write_packet_var($group, 'L', 4);
+            $this->write_packet_var($group, 'group');
 
         $this->write_packet_string($v->get_uuid());
         $this->write_packet_string($v->get_icon());
@@ -339,11 +416,20 @@ class libSysMonitor
         $this->reset_packet();
         $buffer = socket_read($this->sd, 5);
 
-        $u = unpack('C', substr($buffer, 0, 1));
-        $this->header['opcode'] = $u[1];
+        $offset = 0;
+        $format = $this->get_header_format('opcode');
+        $length = $this->get_header_length('opcode');
 
-        $u = unpack('L', substr($buffer, 1, 4));
+        $u = unpack($format, substr($buffer, $offset, $length));
+        $this->header['opcode'] = $u[1];
+        $offset += $length;
+
+        $format = $this->get_header_format('payload_length');
+        $length = $this->get_header_length('payload_length');
+
+        $u = unpack($format, substr($buffer, $offset, $length));
         $this->header['payload_length'] = $u[1];
+        $offset += $length;
 
         if ($this->header['payload_length'] == 0)
             $this->payload = null;
@@ -360,8 +446,10 @@ class libSysMonitor
     protected function write_packet($opcode)
     {
         $this->header['opcode'] = $opcode;
-        $buffer = pack('C', $this->header['opcode']);
-        $buffer .= pack('L', $this->header['payload_length']);
+        $format = $this->get_header_format('opcode');
+        $buffer = pack($format, $this->header['opcode']);
+        $format = $this->get_header_format('payload_length');
+        $buffer .= pack($format, $this->header['payload_length']);
         if ($this->header['payload_length'] > 0)
             $buffer .= $this->payload;
 
@@ -373,16 +461,20 @@ class libSysMonitor
         $this->read_packet();
         if ($this->header['opcode'] != csSMOC_RESULT)
             throw new Exception('Unexpected protocol op-code');
-        if ($this->header['payload_length'] != 4)
+
+        $format = libSysMonAlert::get_field_format('result');
+        $length = libSysMonAlert::get_field_length('result');
+        if ($this->header['payload_length'] != $length)
             throw new Exception('Unexpected payload length');
-        $u = unpack('L', substr($this->payload, 0, 4));
+
+        $u = unpack($format, substr($this->payload, 0, $length));
         return $u[1];
     }
 
     protected function write_result($result)
     {
         $this->reset_packet();
-        $this->write_packet_var($result, 'L', 4);
+        $this->write_packet_var($result, 'result');
         $this->write_packet(csSMOC_RESULT);
     }
 }

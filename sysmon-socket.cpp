@@ -93,9 +93,19 @@ csSysMonOpCode csSysMonSocket::ReadPacket(void)
     ResetPacket();
 
     ssize_t bytes = Read((uint8_t *)header, sizeof(csSysMonHeader));
-    if (bytes > 0 && header->payload_length > 0)
-        bytes = Read(payload, header->payload_length);
-    
+    if (bytes > 0) {
+        fprintf(stderr, "Read packet header:\n");
+        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
+        if (header->payload_length > 0) {
+            if ((bytes = Read(payload, header->payload_length)) > 0) {
+                fprintf(stderr, "Read packet payload:\n");
+                ::csHexDump(
+                    stderr, (const void *)payload, header->payload_length
+                );
+            }
+        }
+    }
+
     return (csSysMonOpCode)header->opcode;
 }
 
@@ -104,14 +114,24 @@ void csSysMonSocket::WritePacket(csSysMonOpCode opcode)
     header->opcode = (uint8_t)opcode;
     ssize_t bytes = Write(buffer,
         sizeof(csSysMonHeader) + header->payload_length);
+    if (bytes > 0) {
+        fprintf(stderr, "Wrote packet header:\n");
+        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
+        if (header->payload_length > 0) {
+            fprintf(stderr, "Wrote packet payload:\n");
+            ::csHexDump(
+                stderr, (const void *)payload, header->payload_length
+            );
+        }
+    }
 }
 
 void csSysMonSocket::ReadPacketVar(string &v)
 {
-    uint32_t length;
+    uint8_t length;
     uint8_t *ptr = payload_index;
-    memcpy((void *)&length, (const void *)ptr, sizeof(uint32_t));
-    ptr += sizeof(uint32_t);
+    memcpy((void *)&length, (const void *)ptr, sizeof(uint8_t));
+    ptr += sizeof(uint8_t);
 
     if (length > 0) {
         v.assign((const char *)ptr, (size_t)length);
@@ -133,10 +153,10 @@ void csSysMonSocket::ReadPacketVar(csSysMonAlert &alert)
     ReadPacketVar((void *)&data.user, sizeof(uint32_t));
 
     gid_t gid;
-    uint32_t groups;
-    ReadPacketVar((void *)&groups, sizeof(uint32_t));
+    uint8_t groups;
+    ReadPacketVar((void *)&groups, sizeof(uint8_t));
 
-    for (uint32_t i = 0; i < groups; i++) {
+    for (uint8_t i = 0; i < groups; i++) {
         ReadPacketVar((void *)&gid, sizeof(uint32_t));
         data.groups.push_back(gid);
     }
@@ -159,14 +179,14 @@ void csSysMonSocket::ReadPacketVar(void *v, size_t length)
 
 void csSysMonSocket::WritePacketVar(const string &v)
 {
-    uint32_t length = (uint32_t)v.length();
-    header->payload_length += v.length() + sizeof(uint32_t);
+    uint8_t length = (uint8_t)v.length();
+    header->payload_length += v.length() + sizeof(uint8_t);
 
     AllocatePayloadBuffer(header->payload_length);
 
     uint8_t *ptr = payload_index;
-    memcpy((void *)ptr, (const void *)&length, sizeof(uint32_t));
-    ptr += sizeof(uint32_t);
+    memcpy((void *)ptr, (const void *)&length, sizeof(uint8_t));
+    ptr += sizeof(uint8_t);
 
     if (length > 0) {
         memcpy((void *)ptr, (const void *)v.c_str(), v.length());
@@ -180,18 +200,18 @@ void csSysMonSocket::WritePacketVar(const csSysMonAlert &alert)
 {
     const csSysMonAlert::csSysMonAlertData *data = alert.GetDataPtr();
 
-    WritePacketVar((const void *)&data->id, sizeof(data->id));
-    WritePacketVar((const void *)&data->stamp, sizeof(data->stamp));
-    WritePacketVar((const void *)&data->flags, sizeof(data->flags));
-    WritePacketVar((const void *)&data->type, sizeof(data->type));
-    WritePacketVar((const void *)&data->user, sizeof(data->user));
+    WritePacketVar((const void *)&data->id, sizeof(int64_t));
+    WritePacketVar((const void *)&data->stamp, sizeof(uint32_t));
+    WritePacketVar((const void *)&data->flags, sizeof(uint32_t));
+    WritePacketVar((const void *)&data->type, sizeof(uint32_t));
+    WritePacketVar((const void *)&data->user, sizeof(uint32_t));
 
-    uint32_t groups = data->groups.size();
-    WritePacketVar((const void *)&groups, sizeof(uint32_t));
+    uint8_t groups = (uint8_t)data->groups.size();
+    WritePacketVar((const void *)&groups, sizeof(uint8_t));
 
     vector<gid_t>::const_iterator i;
     for (i = data->groups.begin(); i != data->groups.end(); i++)
-        WritePacketVar((const void *)&(*i), sizeof(gid_t));
+        WritePacketVar((const void *)&(*i), sizeof(uint32_t));
 
     WritePacketVar(data->uuid);
     WritePacketVar(data->icon);
@@ -256,13 +276,13 @@ csSysMonProtoResult csSysMonSocket::ReadResult(void)
             "Unexpected protocol op-code");
     }
 
-    if (header->payload_length != sizeof(uint32_t)) {
+    if (header->payload_length != sizeof(uint8_t)) {
         throw csSysMonSocketProtocolException(sd,
             "Invalid protocol result length");
     }
 
-    uint32_t rc;
-    ReadPacketVar((void *)&rc, header->payload_length);
+    uint8_t rc;
+    ReadPacketVar((void *)&rc, sizeof(uint8_t));
 
     return (csSysMonProtoResult)rc;
 }
@@ -271,10 +291,10 @@ void csSysMonSocket::WriteResult(csSysMonProtoResult result)
 {
     ResetPacket();
 
-    uint32_t rc = (uint32_t)result;
-    header->payload_length = sizeof(uint32_t);
+    uint8_t rc = (uint8_t)result;
+    header->payload_length = sizeof(uint8_t);
 
-    memcpy((void *)payload, (const void *)&rc, sizeof(uint32_t));
+    memcpy((void *)payload, (const void *)&rc, sizeof(uint8_t));
 
     WritePacket(csSMOC_RESULT);
 }

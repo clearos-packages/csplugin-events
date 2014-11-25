@@ -26,13 +26,16 @@ enum csSysMonOpCode {
 
     csSMOC_VERSION,
     csSMOC_ALERT_INSERT,
+    csSMOC_ALERT_SELECT,
+    csSMOC_ALERT_MARK_READ,
 
-    csSMOC_RESULT,
+    csSMOC_RESULT = 0xFF,
 };
 
 enum csSysMonProtoResult {
     csSMPR_OK,
     csSMPR_VERSION_MISMATCH,
+    csSMPR_ALERT_MATCHES,
 };
 
 class csSysMonSocketException : public csException
