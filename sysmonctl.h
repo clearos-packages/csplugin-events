@@ -25,12 +25,15 @@ public:
         CTLM_NULL,
         CTLM_SEND,
         CTLM_LIST_TYPES,
+        CTLM_MARK_AS_READ,
+        CTLM_LIST_ALERTS,
     };
 
     csSysMonCtl();
     virtual ~csSysMonCtl();
 
-    int Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type,
+    int Exec(csSysMonCtlMode mode,
+        int64_t id, uint32_t flags, const string &type,
         const string &user, const string &uuid, const string &icon,
         ostringstream &desc);
 

@@ -73,7 +73,7 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Enable debugging messages and remain in the foreground.");
 
-        csLog::Log(csLog::Info, "\nSend an Alert:");
+        csLog::Log(csLog::Info, "\nSend an alert:");
         csLog::Log(csLog::Info,
             "  -s, --send");
         csLog::Log(csLog::Info,
@@ -98,6 +98,14 @@ static void usage(int rc = 0, bool version = false)
             "  -i <icon>, --icon <icon>");
         csLog::Log(csLog::Info,
             "    Specify an optional icon.");
+
+        csLog::Log(csLog::Info, "\nMark alert as read:");
+        csLog::Log(csLog::Info,
+            "  -m <id>, --mark-read <id>");
+
+        csLog::Log(csLog::Info, "\nList all alerts:");
+        csLog::Log(csLog::Info,
+            "  -l, --list");
     }
     exit(rc);
 }
@@ -106,6 +114,7 @@ int main(int argc, char *argv[])
 {
     int rc;
 
+    int64_t alert_id = 0;
     uint32_t alert_flags = csSysMonAlert::csAF_NULL;
     string alert_type, alert_user, alert_uuid, alert_icon;
     ostringstream alert_desc;
@@ -121,10 +130,14 @@ int main(int argc, char *argv[])
         // Send an alert
         { "send", 0, 0, 's' },
         { "persistent", 0, 0, 'p' },
-        { "type", 0, 0, 't' },
-        { "user", 0, 0, 'u' },
-        { "uuid", 0, 0, 'U' },
-        { "icon", 0, 0, 'i' },
+        { "type", 1, 0, 't' },
+        { "user", 1, 0, 'u' },
+        { "uuid", 1, 0, 'U' },
+        { "icon", 1, 0, 'i' },
+        // Mark alert as read
+        { "mark-read", 1, 0, 'm' },
+        // List alerts
+        { "list", 0, 0, 'l' },
 
         { NULL, 0, 0, 0 }
     };
@@ -137,7 +150,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?spt:u:U:i:", options, &o)) == -1) break;
+            "Vc:dh?spt:u:U:i:m:l", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);
@@ -175,6 +188,13 @@ int main(int argc, char *argv[])
         case 'i':
             alert_icon = optarg;
             break;
+        case 'm':
+            mode = csSysMonCtl::CTLM_MARK_AS_READ;
+            alert_id = (int64_t)atoll(optarg);
+            break;
+        case 'l':
+            mode = csSysMonCtl::CTLM_LIST_ALERTS;
+            break;
         }
     }
 
@@ -188,11 +208,12 @@ int main(int argc, char *argv[])
         for (int i = optind + 1; i < argc; i++) alert_desc << " " << argv[i];
     }
 
-    rc = sysmon_ctl.Exec(mode,
+    rc = sysmon_ctl.Exec(mode, alert_id,
         alert_flags, alert_type, alert_user, alert_uuid, alert_icon, alert_desc);
 
     free(conf_filename);
 
+    delete log_stdout;
     return rc;
 }
 
@@ -211,13 +232,36 @@ csSysMonCtl::~csSysMonCtl()
     if (sysmon_conf) delete sysmon_conf;
 }
 
-int csSysMonCtl::Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type,
+int csSysMonCtl::Exec(csSysMonCtlMode mode,
+        int64_t id, uint32_t flags, const string &type,
         const string &user, const string &uuid, const string &icon,
         ostringstream &desc)
 {
     csSysMonAlert alert;
-    uint32_t alert_type = 0;
+//    uint32_t alert_type = 0;
     csAlertIdMap alert_types;
+    vector<csSysMonAlert *> result;
+    char alert_flags[3];
+    struct tm tm_local;
+    char date_time[_CS_MAX_TIMESTAMP];
+    string alert_type_name, alert_prio;
+
+    if (mode == CTLM_SEND || mode == CTLM_MARK_AS_READ || mode == CTLM_LIST_ALERTS) {
+        sysmon_socket = new csSysMonSocketClient(sysmon_conf->GetSysMonSocketPath());
+        sysmon_socket->Connect();
+
+        switch (sysmon_socket->VersionExchange()) {
+        case csSMPR_OK:
+            csLog::Log(csLog::Debug, "Protocol version: OK");
+            break;
+        case csSMPR_VERSION_MISMATCH:
+            csLog::Log(csLog::Debug, "Protocol version: mis-match");
+            return 1;
+        default:
+            csLog::Log(csLog::Debug, "Unexpected reply.");
+            return 1;
+        }
+    }
 
     try {
         switch (mode) {
@@ -230,30 +274,74 @@ int csSysMonCtl::Exec(csSysMonCtlMode &mode, uint32_t &flags, const string &type
             if (icon.length()) alert.SetIcon(icon);
             if (desc.tellp()) alert.SetDescription(desc.str());
 
-            sysmon_socket = new csSysMonSocketClient(sysmon_conf->GetSysMonSocketPath());
-            sysmon_socket->Connect();
-            sysmon_socket->VersionExchange(false);
-
-            switch (sysmon_socket->ReadResult()) {
-            case csSMPR_OK:
-                csLog::Log(csLog::Debug, "Protocol version: OK");
-                break;
-            case csSMPR_VERSION_MISMATCH:
-                csLog::Log(csLog::Debug, "Protocol version: mis-match");
-                return 1;
-            }
-
-            sysmon_socket->ResetPacket();
-            sysmon_socket->WritePacketVar(alert);
-            sysmon_socket->WritePacket(csSMOC_ALERT_INSERT);
+            sysmon_socket->AlertInsert(alert);
 
             break;
+
+        case CTLM_MARK_AS_READ:
+            alert.SetId(id);
+
+            sysmon_socket->AlertMarkAsRead(alert);
+
+            break;
+
         case CTLM_LIST_TYPES:
             csLog::Log(csLog::Info, "Alert Types:");
             sysmon_conf->GetAlertTypes(alert_types);
             for (csAlertIdMap::iterator i = alert_types.begin(); i != alert_types.end(); i++)
                 csLog::Log(csLog::Info, "  %s", i->second.c_str());
             break;
+
+        case CTLM_LIST_ALERTS:
+            sysmon_socket->AlertSelect("ORDER BY stamp", result);
+            if (result.size() == 0) {
+                csLog::Log(csLog::Info, "No alerts in database.");
+                break;
+            }
+            for (vector<csSysMonAlert *>::iterator i = result.begin();
+                i != result.end(); i++) {
+
+                const time_t stamp = (*i)->GetStamp();
+                if (localtime_r(&stamp, &tm_local) == NULL) {
+                    csLog::Log(csLog::Error, "Error creating local time: %s",
+                        strerror(errno));
+                    continue;
+                }
+
+                if (strftime(date_time, _CS_MAX_TIMESTAMP, "%c", &tm_local) <= 0) {
+                    csLog::Log(csLog::Error, "Error creating string time: %s",
+                        strerror(errno));
+                    continue;
+                }
+
+                try {
+                    alert_type_name = sysmon_conf->GetAlertType((*i)->GetType());
+                } catch (csException &e) {
+                    csLog::Log(csLog::Error, "Unknown alert type ID: %u",
+                        (*i)->GetType());
+                    alert_type_name = "UNKNOWN";
+                }
+
+                if ((*i)->GetFlags() & csSysMonAlert::csAF_LVL_NORM)
+                    alert_prio = "";
+                else if ((*i)->GetFlags() & csSysMonAlert::csAF_LVL_WARN)
+                    alert_prio = "WARNING";
+                else if ((*i)->GetFlags() & csSysMonAlert::csAF_LVL_WARN)
+                    alert_prio = "CRITICAL";
+
+                alert_flags[0] = ((*i)->GetFlags() & csSysMonAlert::csAF_FLG_PERSIST) ? 'p' : '-';
+                alert_flags[1] = ((*i)->GetFlags() & csSysMonAlert::csAF_FLG_READ) ? 'r' : '-';
+                alert_flags[2] = '\0';
+
+                csLog::Log(csLog::Info, "#%-10llu%-30s%s%s%s [%s]",
+                    (*i)->GetId(), date_time, alert_prio.c_str(),
+                    (alert_prio.length()) ? ": " : " ",
+                    alert_type_name.c_str(), alert_flags);
+                csLog::Log(csLog::Info, (*i)->GetDescription().c_str());
+                csLog::Log(csLog::Info, "");
+            }
+            break;
+            
         default:
             csLog::Log(csLog::Error, "Invalid mode or no mode specified.");
             csLog::Log(csLog::Info, "Try --help for usage information.");

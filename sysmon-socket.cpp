@@ -24,7 +24,12 @@
 
 #include <clearsync/csplugin.h>
 
+#include <sstream>
+
+#include <sqlite3.h>
+
 #include "sysmon-alert.h"
+#include "sysmon-db.h"
 #include "sysmon-socket.h"
 
 csSysMonSocket::csSysMonSocket(const string &socket_path)
@@ -94,14 +99,14 @@ csSysMonOpCode csSysMonSocket::ReadPacket(void)
 
     ssize_t bytes = Read((uint8_t *)header, sizeof(csSysMonHeader));
     if (bytes > 0) {
-        fprintf(stderr, "Read packet header:\n");
-        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
+//        fprintf(stderr, "Read packet header:\n");
+//        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
         if (header->payload_length > 0) {
             if ((bytes = Read(payload, header->payload_length)) > 0) {
-                fprintf(stderr, "Read packet payload:\n");
-                ::csHexDump(
-                    stderr, (const void *)payload, header->payload_length
-                );
+//                fprintf(stderr, "Read packet payload:\n");
+//                ::csHexDump(
+//                    stderr, (const void *)payload, header->payload_length
+//                );
             }
         }
     }
@@ -115,13 +120,13 @@ void csSysMonSocket::WritePacket(csSysMonOpCode opcode)
     ssize_t bytes = Write(buffer,
         sizeof(csSysMonHeader) + header->payload_length);
     if (bytes > 0) {
-        fprintf(stderr, "Wrote packet header:\n");
-        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
+//        fprintf(stderr, "Wrote packet header:\n");
+//        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
         if (header->payload_length > 0) {
-            fprintf(stderr, "Wrote packet payload:\n");
-            ::csHexDump(
-                stderr, (const void *)payload, header->payload_length
-            );
+//            fprintf(stderr, "Wrote packet payload:\n");
+//            ::csHexDump(
+//                stderr, (const void *)payload, header->payload_length
+//            );
         }
     }
 }
@@ -147,7 +152,9 @@ void csSysMonSocket::ReadPacketVar(csSysMonAlert &alert)
     csSysMonAlert::csSysMonAlertData data;
 
     ReadPacketVar((void *)&data.id, sizeof(int64_t));
-    ReadPacketVar((void *)&data.stamp, sizeof(uint32_t));
+    uint32_t stamp;
+    ReadPacketVar((void *)&stamp, sizeof(uint32_t));
+    data.stamp = (time_t)stamp;
     ReadPacketVar((void *)&data.flags, sizeof(uint32_t));
     ReadPacketVar((void *)&data.type, sizeof(uint32_t));
     ReadPacketVar((void *)&data.user, sizeof(uint32_t));
@@ -201,7 +208,8 @@ void csSysMonSocket::WritePacketVar(const csSysMonAlert &alert)
     const csSysMonAlert::csSysMonAlertData *data = alert.GetDataPtr();
 
     WritePacketVar((const void *)&data->id, sizeof(int64_t));
-    WritePacketVar((const void *)&data->stamp, sizeof(uint32_t));
+    uint32_t stamp = (uint32_t)data->stamp;
+    WritePacketVar((const void *)&stamp, sizeof(uint32_t));
     WritePacketVar((const void *)&data->flags, sizeof(uint32_t));
     WritePacketVar((const void *)&data->type, sizeof(uint32_t));
     WritePacketVar((const void *)&data->user, sizeof(uint32_t));
@@ -231,9 +239,20 @@ void csSysMonSocket::WritePacketVar(const void *v, size_t length)
     payload_index = ptr;
 }
 
-void csSysMonSocket::VersionExchange(bool read_version)
+csSysMonProtoResult csSysMonSocket::VersionExchange(void)
 {
-    if (read_version) {
+    csSysMonProtoResult result = csSMPR_OK;
+
+    if (mode == csSM_CLIENT) {
+        ResetPacket();
+
+        proto_version = _SYSMON_SOCKET_PROTOVER;
+        WritePacketVar((void *)&proto_version, sizeof(uint32_t));
+        WritePacket(csSMOC_VERSION);
+
+        return ReadResult();
+    }
+    else if (mode == csSM_SERVER) {
         ReadPacket();
 
         if (header->opcode != csSMOC_VERSION) {
@@ -257,13 +276,100 @@ void csSysMonSocket::VersionExchange(bool read_version)
         }
 
         proto_version = client_proto_version;
-    }
-    else {
-        ResetPacket();
 
-        proto_version = _SYSMON_SOCKET_PROTOVER;
-        WritePacketVar((void *)&proto_version, sizeof(uint32_t));
-        WritePacket(csSMOC_VERSION);
+        WriteResult(result);
+    }
+
+    return result;
+}
+
+void csSysMonSocket::AlertInsert(csSysMonAlert &alert)
+{
+    if (mode == csSM_CLIENT) {
+        ResetPacket();
+        WritePacketVar(alert);
+        WritePacket(csSMOC_ALERT_INSERT);
+    }
+    else if (mode == csSM_SERVER) {
+        ReadPacketVar(alert);
+        alert.SetStamp();
+    }
+}
+
+uint32_t csSysMonSocket::AlertSelect(
+    const string &where, vector<csSysMonAlert *> &result)
+{
+    uint32_t matches = 0;
+
+    ResetPacket();
+    WritePacketVar(where);
+    WritePacket(csSMOC_ALERT_SELECT);
+
+    if (ReadResult() != csSMPR_ALERT_MATCHES)
+        throw csSysMonSocketProtocolException(sd, "Unexpected result");
+
+    ReadPacketVar((void *)&matches, sizeof(uint32_t));
+
+    csLog::Log(csLog::Debug, "Select alert matches: %u", matches);
+
+    for (uint32_t i = 0; i < matches; i++) {
+        if (ReadPacket() != csSMOC_ALERT_RECORD) {
+            throw csSysMonSocketProtocolException(sd,
+                "Unexpected protocol op-code");
+        }
+
+        csSysMonAlert *alert = new csSysMonAlert();
+        ReadPacketVar(*alert);
+        result.push_back(alert);
+    }
+
+    return matches;
+}
+
+void csSysMonSocket::AlertSelect(csSysMonDb *db)
+{
+    string where;
+    ReadPacketVar(where);
+
+    size_t eol = where.find_first_of(';');
+    if (eol != string::npos) where.resize(eol);
+    if (where.length() < 4)
+        throw csSysMonSocketProtocolException(sd, "Invalid where clause");
+
+    vector<csSysMonAlert *> result;
+
+    try {
+        uint32_t matches = db->SelectAlert(where, &result);
+
+        WriteResult(csSMPR_ALERT_MATCHES, &matches, sizeof(uint32_t));
+
+        for (vector<csSysMonAlert *>::iterator i = result.begin();
+            i != result.end(); i++) {
+            ResetPacket();
+            WritePacketVar(*(*i));
+            WritePacket(csSMOC_ALERT_RECORD);
+        }
+    } catch (csException &e) {
+        for (vector<csSysMonAlert *>::iterator i = result.begin();
+            i != result.end(); i++) delete (*i);
+        throw;
+    }
+}
+
+void csSysMonSocket::AlertMarkAsRead(csSysMonAlert &alert)
+{
+    int64_t id;
+
+    if (mode == csSM_CLIENT) {
+        id = alert.GetId();
+
+        ResetPacket();
+        WritePacketVar((const void *)&id, sizeof(int64_t));
+        WritePacket(csSMOC_ALERT_MARK_AS_READ);
+    }
+    else if (mode == csSM_SERVER) {
+        ReadPacketVar((void *)&id, sizeof(int64_t));
+        alert.SetId(id);
     }
 }
 
@@ -276,7 +382,7 @@ csSysMonProtoResult csSysMonSocket::ReadResult(void)
             "Unexpected protocol op-code");
     }
 
-    if (header->payload_length != sizeof(uint8_t)) {
+    if (header->payload_length < sizeof(uint8_t)) {
         throw csSysMonSocketProtocolException(sd,
             "Invalid protocol result length");
     }
@@ -287,7 +393,8 @@ csSysMonProtoResult csSysMonSocket::ReadResult(void)
     return (csSysMonProtoResult)rc;
 }
 
-void csSysMonSocket::WriteResult(csSysMonProtoResult result)
+void csSysMonSocket::WriteResult(csSysMonProtoResult result,
+    const void *data, uint32_t length)
 {
     ResetPacket();
 
@@ -296,15 +403,12 @@ void csSysMonSocket::WriteResult(csSysMonProtoResult result)
 
     memcpy((void *)payload, (const void *)&rc, sizeof(uint8_t));
 
+    if (data != NULL && length > 0) {
+        header->payload_length += length;
+        memcpy((void *)(payload + sizeof(uint8_t)), data, length);
+    }
+
     WritePacket(csSMOC_RESULT);
-}
-
-void csSysMonSocket::AlertInsert(const csSysMonAlert &alert)
-{
-}
-
-void csSysMonSocket::AlertSelect(const csSysMonAlert &alert)
-{
 }
 
 ssize_t csSysMonSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
@@ -375,10 +479,16 @@ ssize_t csSysMonSocket::Write(const uint8_t *data, ssize_t length, time_t timeou
 }
 
 csSysMonSocketClient::csSysMonSocketClient(const string &socket_path)
-    : csSysMonSocket(socket_path) { }
+    : csSysMonSocket(socket_path)
+{
+    mode = csSM_CLIENT;
+}
 
 csSysMonSocketClient::csSysMonSocketClient(int sd, const string &socket_path)
-    : csSysMonSocket(sd, socket_path) { }
+    : csSysMonSocket(sd, socket_path)
+{
+    mode = csSM_SERVER;
+}
 
 void csSysMonSocketClient::Connect(int timeout)
 {

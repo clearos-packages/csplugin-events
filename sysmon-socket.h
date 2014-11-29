@@ -27,7 +27,8 @@ enum csSysMonOpCode {
     csSMOC_VERSION,
     csSMOC_ALERT_INSERT,
     csSMOC_ALERT_SELECT,
-    csSMOC_ALERT_MARK_READ,
+    csSMOC_ALERT_MARK_AS_READ,
+    csSMOC_ALERT_RECORD,
 
     csSMOC_RESULT = 0xFF,
 };
@@ -76,6 +77,11 @@ public:
 class csSysMonSocket
 {
 public:
+    enum csSysMonSocketMode {
+        csSM_CLIENT,
+        csSM_SERVER,
+    };
+
     typedef struct __attribute__ ((__packed__)) {
         uint8_t opcode;
         uint32_t payload_length;
@@ -113,13 +119,16 @@ public:
         header->payload_length = (uint32_t)length;
     }
 
-    void VersionExchange(bool read_version = true);
+    csSysMonProtoResult VersionExchange(void);
+
+    void AlertInsert(csSysMonAlert &alert);
+    uint32_t AlertSelect(const string &where, vector<csSysMonAlert *> &result);
+    void AlertSelect(csSysMonDb *db);
+    void AlertMarkAsRead(csSysMonAlert &alert);
 
     csSysMonProtoResult ReadResult(void);
-    void WriteResult(csSysMonProtoResult result);
-
-    void AlertInsert(const csSysMonAlert &alert);
-    void AlertSelect(const csSysMonAlert &alert);
+    void WriteResult(csSysMonProtoResult result,
+        const void *data = NULL, uint32_t length = 0);
 
 protected:
     void Create(void);
@@ -134,6 +143,7 @@ protected:
     int sd;
     struct sockaddr_un sa;
     const string socket_path;
+    enum csSysMonSocketMode mode;
 
     long page_size;
 
@@ -147,6 +157,8 @@ protected:
     uint8_t *payload_index;
 
     uint32_t proto_version;
+
+    vector<csSysMonAlert *> alert_matches;
 };
 
 class csSysMonSocketClient : public csSysMonSocket

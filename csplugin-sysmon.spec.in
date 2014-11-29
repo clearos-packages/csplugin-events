@@ -8,8 +8,10 @@ Group: System/Plugins
 Packager: ClearFoundation
 Source: %{name}-%{version}.tar.gz
 BuildRoot: /var/tmp/%{name}-%{version}
-Requires: clearsync
-BuildRequires: clearsync-devel expat-devel sqlite-devel
+Requires: clearsync >= 1.8
+BuildRequires: clearsync-devel >= 1.8
+BuildRequires: expat-devel
+BuildRequires: sqlite-devel
 Summary: ClearSync System Monitor plugin
 Requires(pre): /sbin/ldconfig
 

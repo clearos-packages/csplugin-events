@@ -105,8 +105,11 @@ void csSysMonAlert::SetUser(const string &user)
     struct passwd *pwent = NULL;
 
     pwent = getpwnam(user.c_str());
-    if (pwent == NULL)
-        throw csException(ENOENT, "User not found");
+    if (pwent == NULL) {
+        unsigned long long uid = strtoull(user.c_str(), NULL, 0);
+        if ((pwent = getpwuid((uid_t)uid)) == NULL)
+            throw csException(ENOENT, "User not found");
+    }
     data.user = pwent->pw_uid;
 }
 

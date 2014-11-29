@@ -22,6 +22,7 @@
 
 #include <sstream>
 
+#include <string.h>
 #include <sqlite3.h>
 
 #include "sysmon-alert.h"
@@ -45,9 +46,56 @@ static int csSysMonDb_sqlite_exec(void *param, int argc, char **argv, char **col
     return 0;
 }
 
+static int csSysMonDb_sqlite_select_alert(
+    void *param, int argc, char **argv, char **colname)
+{
+    if (argc == 0) return 0;
+
+    unsigned long long v;
+    csSysMonAlert *alert = new csSysMonAlert();
+
+    for (int i = 0; i < argc; i++) {
+        csLog::Log(csLog::Debug, "%s = %s", colname[i], argv[i] ? argv[i] : "(null)");
+
+        if (!strcasecmp(colname[i], "id")) {
+            v = strtoull(argv[i], NULL, 0);
+            alert->SetId((int64_t)v);
+        }
+        else if (!strcasecmp(colname[i], "stamp")) {
+            v = strtoull(argv[i], NULL, 0);
+            alert->SetStamp((time_t)v);
+        }
+        else if (!strcasecmp(colname[i], "flags")) {
+            v = strtoull(argv[i], NULL, 0);
+            alert->SetFlags((uint32_t)v);
+        }
+        else if (!strcasecmp(colname[i], "type")) {
+            v = strtoull(argv[i], NULL, 0);
+            alert->SetType((uint32_t)v);
+        }
+        else if (!strcasecmp(colname[i], "user")) {
+            alert->SetUser(argv[i]);
+        }
+        else if (!strcasecmp(colname[i], "uuid")) {
+            alert->SetUUID(argv[i]);
+        }
+        else if (!strcasecmp(colname[i], "icon")) {
+            alert->SetIcon(argv[i]);
+        }
+        else if (!strcasecmp(colname[i], "desc")) {
+            alert->SetDescription(argv[i]);
+        }
+    }
+
+    vector<csSysMonAlert *> *result = reinterpret_cast<vector<csSysMonAlert *> *>(param);
+    result->push_back(alert);
+
+    return 0;
+}
+
 csSysMonDb_sqlite::csSysMonDb_sqlite(const string &db_filename)
     : csSysMonDb(csDBT_SQLITE), handle(NULL), insert_alert(NULL),
-    purge_alerts(NULL), last_id(NULL), db_filename(db_filename)
+    purge_alerts(NULL), last_id(NULL), mark_read(NULL), db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
 
@@ -73,26 +121,28 @@ void csSysMonDb_sqlite::Close(void)
         sqlite3_finalize(purge_alerts);
     if (last_id != NULL)
         sqlite3_finalize(last_id);
+    if (mark_read != NULL)
+        sqlite3_finalize(mark_read);
 }
 
 void csSysMonDb_sqlite::Create(void)
 {
     sql.str("");
     sql << _SYSMON_DB_SQLITE_CREATE_ALERT;
-    Exec();
+    Exec(csSysMonDb_sqlite_exec);
     sql.str("");
     sql << _SYSMON_DB_SQLITE_CREATE_GROUP;
-    Exec();
+    Exec(csSysMonDb_sqlite_exec);
 }
 
 void csSysMonDb_sqlite::Drop(void)
 {
     sql.str("");
-    sql << "DROP TABLE IF EXISTS alert;";
-    Exec();
+    sql << "DROP TABLE IF EXISTS alerts;";
+    Exec(csSysMonDb_sqlite_exec);
     sql.str("");
     sql << "DROP TABLE IF EXISTS groups;";
-    Exec();
+    Exec(csSysMonDb_sqlite_exec);
 }
 
 int64_t csSysMonDb_sqlite::GetLastId(const string &table)
@@ -138,19 +188,14 @@ int64_t csSysMonDb_sqlite::GetLastId(const string &table)
     return id;
 }
 
-void csSysMonDb_sqlite::SelectAlert(const csSysMonAlert &alert, off_t offset, size_t length)
+uint32_t csSysMonDb_sqlite::SelectAlert(const string &where, vector<csSysMonAlert *> *result)
 {
-/*
-int sqlite3_get_table(
-  sqlite3 *db,          // An open database
-  const char *zSql,     // SQL to be evaluated
-  char ***pazResult,    // Results of the query
-  int *pnRow,           // Number of result rows written here
-  int *pnColumn,        // Number of result columns written here
-  char **pzErrmsg       // Error msg written here
-);
-void sqlite3_free_table(char **result);
-*/
+    sql.str("");
+    sql << _SYSMON_DB_SQLITE_SELECT_ALERT << " " << where << ";";
+
+    Exec(csSysMonDb_sqlite_select_alert, (void *)result);
+
+    return (uint32_t)result->size();
 }
 
 void csSysMonDb_sqlite::InsertAlert(const csSysMonAlert &alert)
@@ -274,12 +319,52 @@ void csSysMonDb_sqlite::PurgeAlerts(const csSysMonAlert &alert, time_t age)
     }
 }
 
-void csSysMonDb_sqlite::Exec(void)
+void csSysMonDb_sqlite::MarkAsRead(int64_t id)
 {
-//    csLog::Log(csLog::Debug, "%s:%d: %p: %s",
-//        __PRETTY_FUNCTION__, __LINE__, handle, sql.str().c_str());
+    int rc, index = 0;
+
+    if (mark_read == NULL) {
+        rc = sqlite3_prepare_v2(handle,
+            _SYSMON_DB_SQLITE_MARK_READ,
+            strlen(_SYSMON_DB_SQLITE_MARK_READ) + 1,
+            &mark_read, NULL);
+        if (rc != SQLITE_OK)
+            throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    }
+    else sqlite3_reset(mark_read);
+
+    // csAF_FLG_READ
+    index = sqlite3_bind_parameter_index(mark_read, "@csAF_FLG_READ");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_READ");
+    if ((rc = sqlite3_bind_int64(mark_read, index,
+        static_cast<sqlite3_int64>(csSysMonAlert::csAF_FLG_READ))) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+
+    // ID
+    index = sqlite3_bind_parameter_index(mark_read, "@id");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
+    if ((rc = sqlite3_bind_int64(mark_read,
+        index, static_cast<sqlite3_int64>(id))) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+
+    do {
+        rc = sqlite3_step(mark_read);
+    }
+    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+    if (rc == SQLITE_ERROR) {
+        rc = sqlite3_errcode(handle);
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    }
+}
+
+void csSysMonDb_sqlite::Exec(int (*callback)(void *, int, char**, char **), void *param)
+{
+    csLog::Log(csLog::Debug, "%s:%d: %p: %s",
+        __PRETTY_FUNCTION__, __LINE__, handle, sql.str().c_str());
+
     char *es = NULL;
-    int rc = sqlite3_exec(handle, sql.str().c_str(), csSysMonDb_sqlite_exec, NULL, &es);
+    int rc = sqlite3_exec(handle, sql.str().c_str(), callback, param, &es);
     if (rc != SQLITE_OK) {
         errstr.str("");
         errstr << es;

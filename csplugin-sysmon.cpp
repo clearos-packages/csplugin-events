@@ -192,7 +192,7 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
        }
     }
     catch (csSysMonSocketHangupException &e) {
-        csLog::Log(csLog::Error, "%s: Socket hang-up: %d",
+        csLog::Log(csLog::Warning, "%s: Socket hang-up: %d",
             name.c_str(), e.GetDescriptor());
         sci = sysmon_socket_client.find(e.GetDescriptor());
         if (sci == sysmon_socket_client.end()) {
@@ -250,22 +250,28 @@ void csPluginSysMon::ProcessClientRequest(csSysMonSocketClient *client)
 
     if (client->GetProtoVersion() == 0) {
         client->VersionExchange();
+
         csLog::Log(csLog::Debug, "%s: Client version: 0x%08x",
             name.c_str(), client->GetProtoVersion());
-
-        client->WriteResult(csSMPR_OK);
 
         return;
     }
 
     switch (client->ReadPacket()) {
     case csSMOC_ALERT_INSERT:
-        client->ReadPacketVar(alert);
-        alert.SetStamp();
+        client->AlertInsert(alert);
         sysmon_db->InsertAlert(alert);
-        alert.SetId(sysmon_db->GetLastId("alert"));
-
         break;
+    case csSMOC_ALERT_SELECT:
+        client->AlertSelect(sysmon_db);
+        break;
+    case csSMOC_ALERT_MARK_AS_READ:
+        client->AlertMarkAsRead(alert);
+        sysmon_db->MarkAsRead(alert.GetId());
+        break;
+    default:
+        csLog::Log(csLog::Warning,
+            "%s: Unhandled op-code: %02x", name.c_str(), client->GetOpCode());
     }
 }
 
@@ -274,7 +280,7 @@ void csPluginSysMon::InsertAlert(const string &desc)
     try {
         csSysMonAlert alert;
         alert.SetDescription(desc);
-        alert.SetFlag(csSysMonAlert::csAF_FLG_READ);
+        alert.SetType(sysmon_conf->GetAlertId("SYSLOG_TEST"));
         sysmon_db->InsertAlert(alert);
         alert.SetId(sysmon_db->GetLastId("alert"));
     }

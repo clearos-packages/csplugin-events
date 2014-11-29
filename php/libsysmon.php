@@ -4,7 +4,8 @@ define('csSMOC_NULL', 0);
 define('csSMOC_VERSION', 1);
 define('csSMOC_ALERT_INSERT', 2);
 define('csSMOC_ALERT_SELECT', 3);
-define('csSMOC_ALERT_MARK_READ', 4);
+define('csSMOC_ALERT_MARK_AS_READ', 4);
+define('csSMOC_ALERT_RECORD', 5);
 define('csSMOC_RESULT', 0xFF);
 
 define('csSMPR_OK', 0);
@@ -58,7 +59,7 @@ class libSysMonAlert
     public static function init_field_sizes()
     {
         self::$field_sizes = array(
-            'id' => array('format' => 'NN', 'size' => 8),
+            'id' => array('format' => 'LL', 'size' => 8),
             'stamp' => array('format' => 'L', 'size' => 4),
             'flags' => array('format' => 'L', 'size' => 4),
             'type' => array('format' => 'L', 'size' => 4),
@@ -68,6 +69,7 @@ class libSysMonAlert
             'string' => array('format' => 'C', 'size' => 1),
             'version' => array('format' => 'L', 'size' => 4),
             'result' => array('format' => 'C', 'size' => 1),
+            'matches' => array('format' => 'L', 'size' => 4),
         );
     }
 
@@ -209,6 +211,7 @@ libSysMonAlert::init_field_sizes();
 class libSysMonitor
 {
     const PATH_SOCKET = '/tmp/sysmonctl.socket';
+    const FILE_CONFIG = '/etc/clearsync.d/csplugin-sysmon.conf';
 
     protected $sd;
     protected $socket_path;
@@ -216,6 +219,7 @@ class libSysMonitor
     protected $header_field_sizes;
     protected $payload;
     protected $payload_index;
+    protected $alert_type_map;
 
     public function __construct($socket_path = self::PATH_SOCKET)
     {
@@ -231,6 +235,21 @@ class libSysMonitor
         $this->socket_path = $socket_path;
 
         $this->reset_packet();
+
+        $xml_source = file_get_contents(self::FILE_CONFIG);
+        if ($xml_source === false)
+            throw new Exception('Configuration not found: ' . self::FILE_CONFIG);
+
+        $xml_config = simplexml_load_string($xml_source);
+        if ($xml_config === false)
+            throw new Exception('Error parsing configuration: ' . self::FILE_CONFIG);
+
+        $this->alert_type_map = array();
+        foreach ($xml_config->types->type as $i => $type) {
+            $id = $type['id'][0];
+            $name = $type['type'][0];
+            $this->alert_type_map["$id"] = sprintf('%s', $name);
+        }
     }
 
     public function __destruct()
@@ -245,11 +264,58 @@ class libSysMonitor
         $this->version_exchange();
     }
 
+    public function get_type_id($name)
+    {
+        return array_search($name, $this->alert_type_map);
+    }
+
+    public function get_type_name($id)
+    {
+        if (! array_key_exists($id, $this->alert_type_map)) return false;
+        return $this->alert_type_map[$id];
+    }
+
     public function send_alert($alert)
     {
         $this->reset_packet();
         $this->write_packet_alert($alert);
         $this->write_packet(csSMOC_ALERT_INSERT);
+    }
+
+    public function get_alerts($where = 'WHERE NOT flags & 512 ORDER BY flags, stamp')
+    {
+        $this->reset_packet();
+        $this->write_packet_string($where);
+        $this->write_packet(csSMOC_ALERT_SELECT);
+
+        if ($this->read_result() != csSMPR_ALERT_MATCHES) {
+            throw new Exception(
+                'Unexpected result code: ' . $this->header['opcode']
+            );
+        }
+
+        $alerts = array();
+        $this->read_packet_var($matches, 'matches');
+
+        for ($i = 0; $i < $matches; $i++) {
+            if ($this->read_packet() != csSMOC_ALERT_RECORD) {
+                throw new Exception(
+                    'Unexpected op-code: ' . $this->header['opcode']
+                );
+            }
+            $alert = new libSysMonAlert();
+            $this->read_packet_alert($alert);
+            $alerts[] = $alert;
+        }
+
+        return $alerts;
+    }
+
+    public function mark_as_read($id)
+    {
+        $this->reset_packet();
+        $this->write_packet_var($id, 'id');
+        $this->write_packet(csSMOC_ALERT_MARK_AS_READ);
     }
 
     protected function get_header_length($field)
@@ -274,7 +340,7 @@ class libSysMonitor
 
         if ($this->read_result() != csSMPR_OK) {
             throw new Exception(
-                'Unexpected result code: ' + $this->header['opcode']
+                'Unexpected result code: ' . $this->header['opcode']
             );
         }
     }
@@ -326,10 +392,11 @@ class libSysMonitor
         $length = libSysMonAlert::get_field_length('id');
 
         $u = unpack(
-            'N2',
+            'L2',
             substr($this->payload, $this->payload_index, $length)
         );
-        $v->set_id($u[1] << 32 | $u[2]);
+        //$v->set_id($u[1] << 32 | $u[2]);
+        $v->set_id($u[1] | $u[2]);
         $this->payload_index += $length;
 
         $this->read_packet_var($u, 'stamp');
@@ -367,7 +434,17 @@ class libSysMonitor
         $format = libSysMonAlert::get_field_format($field);
         $length = libSysMonAlert::get_field_length($field);
 
-        $this->payload .= pack($format, $v);
+        if ($length == 8) {
+            $hi =  $v & 0x00000000ffffffff;
+            $lo = ($v & 0xffffffff00000000) >> 32;
+            //$hi = ($v & 0xffffffff00000000) >> 32;
+            //$lo =  $v & 0x00000000ffffffff;
+        
+            $this->payload .= pack($format, $hi, $lo);
+        }
+        else
+            $this->payload .= pack($format, $v);
+
         $this->payload_length += $length;
         $this->header['payload_length'] += $length;
     }
@@ -387,15 +464,7 @@ class libSysMonitor
 
     protected function write_packet_alert($v)
     {
-        $format = libSysMonAlert::get_field_format('id');
-        $length = libSysMonAlert::get_field_length('id');
-
-        $hi = ($v->get_id() & 0xffffffff00000000) >> 32;
-        $lo =  $v->get_id() & 0x00000000ffffffff;
-
-        $this->payload .= pack($format, $hi, $lo);
-        $this->header['payload_length'] += $length;
-
+        $this->write_packet_var($v->get_id(), 'id');
         $this->write_packet_var($v->get_stamp(), 'stamp');
         $this->write_packet_var($v->get_flags(), 'flags');
         $this->write_packet_var($v->get_type(), 'type');
@@ -464,10 +533,11 @@ class libSysMonitor
 
         $format = libSysMonAlert::get_field_format('result');
         $length = libSysMonAlert::get_field_length('result');
-        if ($this->header['payload_length'] != $length)
+        if ($this->header['payload_length'] < $length)
             throw new Exception('Unexpected payload length');
 
         $u = unpack($format, substr($this->payload, 0, $length));
+        $this->payload_index += $length;
         return $u[1];
     }
 
