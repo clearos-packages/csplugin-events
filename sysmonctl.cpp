@@ -31,7 +31,6 @@
 
 #include "sysmon-conf.h"
 #include "sysmon-alert.h"
-#include "sysmon-alert-source.h"
 #include "sysmon-db.h"
 #include "sysmon-socket.h"
 #include "sysmon-syslog.h"

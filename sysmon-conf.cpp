@@ -22,6 +22,32 @@
 
 #include "sysmon-conf.h"
 
+csSysMonAlertSourceConfig::csSysMonAlertSourceConfig(
+    csSysMonAlertSourceType type, uint32_t alert_type)
+    : type(type), alert_type(alert_type)
+{
+}
+
+csSysMonAlertSourceConfig::~csSysMonAlertSourceConfig()
+{
+}
+
+csSysMonAlertSourceConfig_syslog::csSysMonAlertSourceConfig_syslog(uint32_t alert_type)
+    : csSysMonAlertSourceConfig(csAST_SYSLOG, alert_type)
+{
+}
+
+csSysMonAlertSourceConfig_syslog::~csSysMonAlertSourceConfig_syslog()
+{
+}
+
+void csSysMonAlertSourceConfig_syslog::AddPattern(const string &locale, const string &pattern)
+{
+    csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
+    if (i != patterns.end()) throw csSysMonAlertPatternExistsException();
+    patterns[locale] = pattern;
+}
+
 void csSysMonConf::Reload(void)
 {
     csConf::Reload();
@@ -33,11 +59,35 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
     csSysMonConf *_conf = static_cast<csSysMonConf *>(conf);
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
+
+    if ((*tag) == "alert") {
+        if (!stack.size() || (*stack.back()) != "alerts")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("type"))
+            ParseError("type parameter missing");
+        if (!tag->ParamExists("source"))
+            ParseError("source parameter missing");
+
+        uint32_t id = 0;
+        try {
+            id = _conf->GetAlertId(tag->GetParamValue("type"));
+        }
+        catch (csException &e) { }
+        if (id == 0)
+            ParseError("invalid type parameter");
+
+        if (tag->GetParamValue("source") == "syslog") {
+            csSysMonAlertSourceConfig_syslog *syslog_config;
+            syslog_config = new csSysMonAlertSourceConfig_syslog(id);
+            tag->SetData(syslog_config);
+        }
+        else
+            ParseError("invalid source parameter");
+    }
 }
 
 void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 {
-    string text = tag->GetText();
     csSysMonConf *_conf = static_cast<csSysMonConf *>(conf);
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
@@ -127,27 +177,33 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
         if (!stack.size() || (*stack.back()) != "plugin")
             ParseError("unexpected tag: " + tag->GetName());
     }
-    else if ((*tag) == "alert") {
-        if (!stack.size() || (*stack.back()) != "alerts")
+    else if ((*tag) == "pattern") {
+        if (!stack.size() || (*stack.back()) != "alert")
             ParseError("unexpected tag: " + tag->GetName());
-        if (!tag->ParamExists("type"))
-            ParseError("type parameter missing");
-        if (!tag->ParamExists("source"))
-            ParseError("source parameter missing");
+        if (!tag->ParamExists("locale"))
+            ParseError("locale parameter missing");
 
-        uint32_t id = 0;
-        try {
-            id = _conf->GetAlertId(tag->GetParamValue("type"));
-        }
-        catch (csException &e) { }
-        if (id == 0)
-            ParseError("invalid type parameter");
+        string text = tag->GetText();
+        if (text.length() == 0) ParseError("pattern text missing");
 
-        if (tag->GetParamValue("source") == "syslog") {
-        }
-        else
-            ParseError("invalid source parameter");
+        csSysMonAlertSourceConfig *config = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        if (config == NULL) ParseError("missing configuration data");
+        if (config->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+            ParseError("wrong type of configuration data");
+
+        csSysMonAlertSourceConfig_syslog *syslog_config;
+        syslog_config = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+
+        syslog_config->AddPattern(tag->GetParamValue("locale"), text);
+        _conf->alert_source_config.push_back(syslog_config);
     }
+}
+
+csSysMonConf::~csSysMonConf()
+{
+    csAlertSourceConfigVector::iterator i;
+    for (i = alert_source_config.begin(); i != alert_source_config.end(); i++)
+        delete (*i);
 }
 
 uint32_t csSysMonConf::GetAlertId(const string &type)
@@ -173,8 +229,17 @@ string csSysMonConf::GetAlertType(uint32_t id)
 void csSysMonConf::GetAlertTypes(csAlertIdMap &types)
 {
     types.clear();
-    for (csAlertIdMap::iterator i = alert_types.begin(); i != alert_types.end(); i++)
+    csAlertIdMap::const_iterator i;
+    for (i = alert_types.begin(); i != alert_types.end(); i++)
         types[i->first] = i->second;
+}
+
+void csSysMonConf::GetAlertSourceConfigs(csAlertSourceConfigVector &configs)
+{
+    configs.clear();
+    csAlertSourceConfigVector::iterator i;
+    for (i = alert_source_config.begin(); i != alert_source_config.end(); i++)
+        configs.push_back((*i));
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

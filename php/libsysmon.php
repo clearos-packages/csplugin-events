@@ -282,7 +282,7 @@ class libSysMonitor
         $this->write_packet(csSMOC_ALERT_INSERT);
     }
 
-    public function get_alerts($where = 'WHERE NOT flags & 512 ORDER BY flags, stamp')
+    public function get_alerts($where = 'ORDER BY stamp')
     {
         $this->reset_packet();
         $this->write_packet_string($where);

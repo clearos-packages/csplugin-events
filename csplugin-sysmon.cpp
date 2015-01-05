@@ -29,7 +29,6 @@
 
 #include "sysmon-conf.h"
 #include "sysmon-alert.h"
-#include "sysmon-alert-source.h"
 #include "sysmon-db.h"
 #include "sysmon-socket.h"
 #include "sysmon-syslog.h"
@@ -38,9 +37,20 @@
 csPluginSysMon::csPluginSysMon(const string &name,
     csEventClient *parent, size_t stack_size)
     : csPlugin(name, parent, stack_size),
-    sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL)
+    sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL),
+    sysmon_socket_server(NULL)
 {
-    csLog::Log(csLog::Debug, "%s: Initialized.", name.c_str());
+    ::csGetLocale(locale);
+    size_t uscore_delim = locale.find_first_of('_');
+    if (uscore_delim != string::npos) {
+        string temp;
+        ::csGetLocale(temp);
+        temp = locale.substr(0, uscore_delim);
+        locale = temp;
+    }
+
+    csLog::Log(csLog::Debug, "%s: Initialized (locale: %s)",
+        name.c_str(), locale.c_str());
 }
 
 csPluginSysMon::~csPluginSysMon()
@@ -53,6 +63,12 @@ csPluginSysMon::~csPluginSysMon()
     if (sysmon_socket_server != NULL) delete sysmon_socket_server;
     for (csPluginSysMonClientMap::iterator i = sysmon_socket_client.begin();
         i != sysmon_socket_client.end(); i++) delete i->second;
+    for (csSysMonSyslogRegExVector::iterator i = sysmon_syslog_rx.begin();
+        i != sysmon_syslog_rx.end(); i++) {
+        if ((*i)->rx) delete (*i)->rx;
+        if ((*i)->rx_en) delete (*i)->rx_en;
+        delete (*i);
+    }
 }
 
 void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
@@ -76,6 +92,63 @@ void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
         csLog::Log(csLog::Error,
             "%s: %s: %s", name.c_str(), e.estring.c_str(), e.what());
     }
+
+    csAlertSourceConfigVector alert_sources;
+    sysmon_conf->GetAlertSourceConfigs(alert_sources);
+
+    int compiled = 0;
+    csAlertSourceMap_syslog_pattern *patterns;
+
+    for (csAlertSourceConfigVector::iterator i = alert_sources.begin();
+        i != alert_sources.end(); i++) {
+
+        if ((*i)->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG) continue;
+
+        csSysMonAlertSourceConfig_syslog *syslog_config;
+        syslog_config = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>((*i));
+
+        patterns = syslog_config->GetPatterns();
+
+        for (csAlertSourceMap_syslog_pattern::iterator j = patterns->begin();
+            j != patterns->end(); j++) {
+
+            csSysMonSyslogRegEx *entry = NULL;
+
+            try {
+                entry = new csSysMonSyslogRegEx;
+                memset(entry, 0, sizeof(csSysMonSyslogRegEx));
+                entry->type = syslog_config->GetAlertType();
+
+                int nmatch = 0;
+                if (entry->type == 6000) nmatch = 3;
+                csLog::Log(csLog::Debug, "%s: nmatch: %d", name.c_str(), nmatch);
+                if (j->first == locale)
+                    entry->rx = new csRegEx(j->second.c_str(), nmatch);
+                if (j->first == "en")
+                    entry->rx_en = new csRegEx(j->second.c_str(), nmatch);
+
+                if (entry->rx == NULL && entry->rx_en == NULL) {
+                    delete entry;
+                    continue;
+                }
+
+                compiled++;
+            }
+            catch (csException &e) {
+                csLog::Log(csLog::Error,
+                    "%s: Regular expression compilation failed: %s",
+                        name.c_str(), e.what());
+                if (entry != NULL) delete entry;
+                entry = NULL;
+            }
+
+            if (entry != NULL)
+                sysmon_syslog_rx.push_back(entry);
+        }
+    }
+
+    csLog::Log(csLog::Debug,
+        "%s: Compiled %d regular expressions", name.c_str(), compiled);
 }
 
 void *csPluginSysMon::Entry(void)
@@ -170,8 +243,29 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
             sysmon_syslog->Read(syslog_messages);
             for (vector<string>::iterator i = syslog_messages.begin();
                 i != syslog_messages.end(); i++) {
-                csLog::Log(csLog::Debug, (*i).c_str());
-                InsertAlert((*i));
+                for (csSysMonSyslogRegExVector::iterator j = sysmon_syslog_rx.begin();
+                    j != sysmon_syslog_rx.end(); j++) {
+
+                    csRegEx *rx = (*j)->rx;
+                    if (rx == NULL) rx = (*j)->rx_en;
+                    if (rx == NULL) continue;
+                    if (rx->Execute((*i).c_str()) != 0) continue;
+
+                    csLog::Log(csLog::Debug, "%s: %s", name.c_str(), (*i).c_str());
+
+                    ostringstream os;
+                    os << "User " << rx->GetMatch(2);
+                    os << " logged in via " << rx->GetMatch(1);
+                    csSysMonAlert alert;
+                    alert.SetType((*j)->type);
+                    alert.SetDescription(os.str());
+
+                    sysmon_db->InsertAlert(alert);
+
+                    //alert.SetId(sysmon_db->GetLastId("alert"));
+                    //InsertAlert((*i));
+                    break;
+                }
             }
         }
 

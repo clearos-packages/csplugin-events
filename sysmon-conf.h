@@ -23,8 +23,50 @@
 #define _SYSMON_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-sysmon/syslog.socket"
 
 typedef map<uint32_t, string> csAlertIdMap;
-//typedef map<string, vector<string> > csAlertPatternMap;
-//typedef map<uint32_t, csAlertPatternMap> csAlertSyslogMap;
+typedef map<string, string> csAlertSourceMap_syslog_pattern;
+
+class csSysMonAlertPatternExistsException : public csException
+{
+public:
+    explicit csSysMonAlertPatternExistsException()
+        : csException(EEXIST, "Alert pattern exists") { }
+};
+
+class csSysMonAlertSourceConfig
+{
+public:
+    enum csSysMonAlertSourceType
+    {
+        csAST_NULL,
+        csAST_SYSLOG,
+        csAST_SYSWATCH,
+    };
+
+    csSysMonAlertSourceConfig(csSysMonAlertSourceType type, uint32_t alert_type);
+    virtual ~csSysMonAlertSourceConfig();
+
+    csSysMonAlertSourceType GetType(void) { return type; }
+    uint32_t GetAlertType(void) { return alert_type; }
+
+protected:
+    csSysMonAlertSourceType type;
+    uint32_t alert_type;
+};
+
+typedef vector<csSysMonAlertSourceConfig *> csAlertSourceConfigVector;
+
+class csSysMonAlertSourceConfig_syslog : public csSysMonAlertSourceConfig
+{
+public:
+    csSysMonAlertSourceConfig_syslog(uint32_t alert_type);
+    virtual ~csSysMonAlertSourceConfig_syslog();
+
+    void AddPattern(const string &locale, const string &pattern);
+    csAlertSourceMap_syslog_pattern *GetPatterns(void) { return &patterns; }
+
+protected:
+    csAlertSourceMap_syslog_pattern patterns;
+};
 
 class csSysMonConf;
 class csPluginXmlParser : public csXmlParser
@@ -38,6 +80,13 @@ class csPluginSysMon;
 class csSysMonConf : public csConf
 {
 public:
+    enum csSysMonAlertSourceType
+    {
+        csAST_NULL,
+        csAST_SYSLOG,
+        csAST_SYSWATCH,
+    };
+
     csSysMonConf(csPluginSysMon *parent,
         const char *filename, csPluginXmlParser *parser)
         : csConf(filename, parser), parent(parent), max_age_ttl(0),
@@ -45,6 +94,7 @@ public:
         sqlite_db_filename(_SYSMON_CONF_SQLITE_DB),
         syslog_socket_path(_SYSMON_CONF_SYSLOG_SOCKET),
         syswatch_state_path(_SYSMON_CONF_SYSWATCH_STATE) { };
+    virtual ~csSysMonConf();
 
     virtual void Reload(void);
 
@@ -56,6 +106,7 @@ public:
     uint32_t GetAlertId(const string &type);
     string GetAlertType(uint32_t id);
     void GetAlertTypes(csAlertIdMap &types);
+    void GetAlertSourceConfigs(csAlertSourceConfigVector &configs);
 
 protected:
     friend class csPluginXmlParser;
@@ -68,6 +119,7 @@ protected:
     string syslog_socket_path;
     string syswatch_state_path;
     csAlertIdMap alert_types;
+    csAlertSourceConfigVector alert_source_config;
 };
 
 #endif // _SYSMON_CONF_H

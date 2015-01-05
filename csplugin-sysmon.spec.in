@@ -34,6 +34,7 @@ rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-sysmon.a
 rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-sysmon.la
 mkdir -vp ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 cp -v csplugin-sysmon.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
+mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-sysmon
 
 # Clean-up
 %clean
@@ -71,4 +72,6 @@ cp -v csplugin-sysmon.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 %defattr(-,root,root)
 %config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-sysmon.conf
 %{_libdir}/libcsplugin-sysmon.so*
+%attr(750,clearsync,clearsync) %{_localstatedir}/lib/csplugin-sysmon
+%{_bindir}/sysmonctl
 
