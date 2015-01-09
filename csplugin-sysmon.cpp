@@ -265,6 +265,7 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
 
                     string text;
                     SyslogTextSubstitute(text, rx, rx_config);
+                    if (text.length() == 0) continue;
 
                     csLog::Log(csLog::Debug, "%s: %s", name.c_str(), (*i).c_str());
                     csLog::Log(csLog::Debug, "%s: %s", name.c_str(), text.c_str());
@@ -408,6 +409,10 @@ void csPluginSysMon::SyslogTextSubstitute(string &dst,
     dst = rx_config->text;
     csAlertSourceConfig_syslog_match::iterator i;
     for (i = rx_config->match.begin(); i != rx_config->match.end(); i++) {
+        if (strlen(rx->GetMatch(i->first)) == 0) {
+            dst.clear();
+            return;
+        }
         while ((pos = dst.find(i->second)) != string::npos)
             dst.replace(pos, i->second.length(), rx->GetMatch(i->first));
     }
