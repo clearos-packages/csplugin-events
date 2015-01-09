@@ -70,7 +70,7 @@ void csSysMonAlertSourceConfig_syslog::AddMatchVar(int index, const string &name
     else
         p = i->second;
 
-    p->match[index] = name;
+    p->match[index] = "$" + name;
 }
 
 void csSysMonAlertSourceConfig_syslog::AddPattern(const string &pattern)

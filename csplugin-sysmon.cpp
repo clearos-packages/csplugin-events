@@ -409,7 +409,7 @@ void csPluginSysMon::SyslogTextSubstitute(string &dst,
     csAlertSourceConfig_syslog_match::iterator i;
     for (i = rx_config->match.begin(); i != rx_config->match.end(); i++) {
         while ((pos = dst.find(i->second)) != string::npos)
-            dst.replace(pos - 1, i->second.length() + 1, rx->GetMatch(i->first));
+            dst.replace(pos, i->second.length(), rx->GetMatch(i->first));
     }
 }
 
