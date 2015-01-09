@@ -48,8 +48,6 @@ protected:
     void ProcessEventSelect(fd_set &fds);
     void ProcessClientRequest(csSysMonSocketClient *client);
 
-    void InsertAlert(const string &desc);
-
     void SyslogTextSubstitute(string &dst,
         csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
 

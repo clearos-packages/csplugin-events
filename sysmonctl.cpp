@@ -332,10 +332,10 @@ int csSysMonCtl::Exec(csSysMonCtlMode mode,
                 alert_flags[1] = ((*i)->GetFlags() & csSysMonAlert::csAF_FLG_READ) ? 'r' : '-';
                 alert_flags[2] = '\0';
 
-                csLog::Log(csLog::Info, "#%-10llu%-30s%s%s%s [%s]",
+                csLog::Log(csLog::Info, "#%-10llu%-30s%s%s[%s] %s",
                     (*i)->GetId(), date_time, alert_prio.c_str(),
                     (alert_prio.length()) ? ": " : " ",
-                    alert_type_name.c_str(), alert_flags);
+                    alert_flags, alert_type_name.c_str());
                 csLog::Log(csLog::Info, (*i)->GetDescription().c_str());
                 csLog::Log(csLog::Info, "");
             }

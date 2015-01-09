@@ -276,8 +276,6 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
 
                     sysmon_db->InsertAlert(alert);
 
-                    //alert.SetId(sysmon_db->GetLastId("alert"));
-                    //InsertAlert((*i));
                     break;
                 }
             }
@@ -380,25 +378,6 @@ void csPluginSysMon::ProcessClientRequest(csSysMonSocketClient *client)
     default:
         csLog::Log(csLog::Warning,
             "%s: Unhandled op-code: %02x", name.c_str(), client->GetOpCode());
-    }
-}
-
-void csPluginSysMon::InsertAlert(const string &desc)
-{
-    try {
-        csSysMonAlert alert;
-        alert.SetDescription(desc);
-        alert.SetType(sysmon_conf->GetAlertId("SYSLOG_TEST"));
-        sysmon_db->InsertAlert(alert);
-        alert.SetId(sysmon_db->GetLastId("alert"));
-    }
-    catch (csSysMonDbException &e) {
-        csLog::Log(csLog::Error,
-            "%s: Database exception: %s", name.c_str(), e.estring.c_str());
-    }
-    catch (csException &e) {
-        csLog::Log(csLog::Error,
-            "%s: Database exception: %s", name.c_str(), e.estring.c_str());
     }
 }
 
