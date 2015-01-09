@@ -23,13 +23,19 @@
 #define _SYSMON_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-sysmon/syslog.socket"
 
 typedef map<uint32_t, string> csAlertIdMap;
-typedef map<string, string> csAlertSourceMap_syslog_pattern;
 
 class csSysMonAlertPatternExistsException : public csException
 {
 public:
     explicit csSysMonAlertPatternExistsException()
         : csException(EEXIST, "Alert pattern exists") { }
+};
+
+class csSysMonAlertPatternNotFoundException : public csException
+{
+public:
+    explicit csSysMonAlertPatternNotFoundException()
+        : csException(ENOENT, "Alert pattern not found") { }
 };
 
 class csSysMonAlertSourceConfig
@@ -54,6 +60,17 @@ protected:
 };
 
 typedef vector<csSysMonAlertSourceConfig *> csAlertSourceConfigVector;
+typedef map<int, string> csAlertSourceConfig_syslog_match;
+
+typedef struct
+{
+    string text;
+    csAlertSourceConfig_syslog_match match;
+    string pattern;
+} csAlertSourceConfig_syslog_pattern;
+
+typedef map<string,
+    csAlertSourceConfig_syslog_pattern *> csAlertSourceMap_syslog_pattern;
 
 class csSysMonAlertSourceConfig_syslog : public csSysMonAlertSourceConfig
 {
@@ -61,10 +78,16 @@ public:
     csSysMonAlertSourceConfig_syslog(uint32_t alert_type);
     virtual ~csSysMonAlertSourceConfig_syslog();
 
-    void AddPattern(const string &locale, const string &pattern);
+    void SetLocale(const string &locale) { this->locale = locale; }
+
+    void AddText(const string &text);
+    void AddMatchVar(int index, const string &name);
+    void AddPattern(const string &pattern);
+
     csAlertSourceMap_syslog_pattern *GetPatterns(void) { return &patterns; }
 
 protected:
+    string locale;
     csAlertSourceMap_syslog_pattern patterns;
 };
 

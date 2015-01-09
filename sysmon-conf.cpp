@@ -32,20 +32,59 @@ csSysMonAlertSourceConfig::~csSysMonAlertSourceConfig()
 {
 }
 
-csSysMonAlertSourceConfig_syslog::csSysMonAlertSourceConfig_syslog(uint32_t alert_type)
-    : csSysMonAlertSourceConfig(csAST_SYSLOG, alert_type)
+csSysMonAlertSourceConfig_syslog::csSysMonAlertSourceConfig_syslog(
+    uint32_t alert_type
+) : locale("en"), csSysMonAlertSourceConfig(csAST_SYSLOG, alert_type)
 {
 }
 
 csSysMonAlertSourceConfig_syslog::~csSysMonAlertSourceConfig_syslog()
 {
+    csAlertSourceMap_syslog_pattern::iterator i;
+    for (i = patterns.begin(); i != patterns.end(); i++)
+        delete i->second;
 }
 
-void csSysMonAlertSourceConfig_syslog::AddPattern(const string &locale, const string &pattern)
+void csSysMonAlertSourceConfig_syslog::AddText(const string &text)
 {
+    csAlertSourceConfig_syslog_pattern *p;
     csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
-    if (i != patterns.end()) throw csSysMonAlertPatternExistsException();
-    patterns[locale] = pattern;
+    if (i == patterns.end()) {
+        p = new csAlertSourceConfig_syslog_pattern;
+        patterns[locale] = p;
+    }
+    else
+        p = i->second;
+
+    p->text = text;
+}
+
+void csSysMonAlertSourceConfig_syslog::AddMatchVar(int index, const string &name)
+{
+    csAlertSourceConfig_syslog_pattern *p;
+    csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
+    if (i == patterns.end()) {
+        p = new csAlertSourceConfig_syslog_pattern;
+        patterns[locale] = p;
+    }
+    else
+        p = i->second;
+
+    p->match[index] = name;
+}
+
+void csSysMonAlertSourceConfig_syslog::AddPattern(const string &pattern)
+{
+    csAlertSourceConfig_syslog_pattern *p;
+    csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
+    if (i == patterns.end()) {
+        p = new csAlertSourceConfig_syslog_pattern;
+        patterns[locale] = p;
+    }
+    else
+        p = i->second;
+
+    p->pattern = pattern;
 }
 
 void csSysMonConf::Reload(void)
@@ -83,6 +122,22 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
         }
         else
             ParseError("invalid source parameter");
+    }
+    else if ((*tag) == "locale") {
+        if (!stack.size() || (*stack.back()) != "alert")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("lang"))
+            ParseError("lang parameter missing");
+
+        csSysMonAlertSourceConfig *asc;
+        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        if (asc == NULL) ParseError("missing configuration data");
+        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+            ParseError("wrong type of configuration data");
+        csSysMonAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+        ascs->SetLocale(tag->GetParamValue("lang"));
+        tag->SetData(asc);
     }
 }
 
@@ -177,25 +232,71 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
         if (!stack.size() || (*stack.back()) != "plugin")
             ParseError("unexpected tag: " + tag->GetName());
     }
-    else if ((*tag) == "pattern") {
-        if (!stack.size() || (*stack.back()) != "alert")
+    else if ((*tag) == "text") {
+        if (!stack.size() || (*stack.back()) != "locale")
             ParseError("unexpected tag: " + tag->GetName());
-        if (!tag->ParamExists("locale"))
-            ParseError("locale parameter missing");
+
+        string text = tag->GetText();
+        if (text.length() == 0) ParseError("alert text missing");
+
+        csSysMonAlertSourceConfig *asc;
+        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        if (asc == NULL) ParseError("missing configuration data");
+        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+            ParseError("wrong type of configuration data");
+
+        csSysMonAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+
+        ascs->AddText(text);
+    }
+    else if ((*tag) == "match") {
+        if (!stack.size() || (*stack.back()) != "locale")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("index"))
+            ParseError("index parameter missing");
+        if (!tag->ParamExists("name"))
+            ParseError("name parameter missing");
+
+        csSysMonAlertSourceConfig *asc;
+        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        if (asc == NULL) ParseError("missing configuration data");
+        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+            ParseError("wrong type of configuration data");
+
+        csSysMonAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+
+        ascs->AddMatchVar(
+            atoi(tag->GetParamValue("index").c_str()),
+            tag->GetParamValue("name"));
+    }
+    else if ((*tag) == "pattern") {
+        if (!stack.size() || (*stack.back()) != "locale")
+            ParseError("unexpected tag: " + tag->GetName());
 
         string text = tag->GetText();
         if (text.length() == 0) ParseError("pattern text missing");
 
-        csSysMonAlertSourceConfig *config = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
-        if (config == NULL) ParseError("missing configuration data");
-        if (config->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+        csSysMonAlertSourceConfig *asc;
+        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        if (asc == NULL) ParseError("missing configuration data");
+        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
 
-        csSysMonAlertSourceConfig_syslog *syslog_config;
-        syslog_config = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+        csSysMonAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
 
-        syslog_config->AddPattern(tag->GetParamValue("locale"), text);
-        _conf->alert_source_config.push_back(syslog_config);
+        ascs->AddPattern(text);
+    }
+    else if ((*tag) == "alert") {
+        if (!stack.size() || (*stack.back()) != "alerts")
+            ParseError("unexpected tag: " + tag->GetName());
+
+        csSysMonAlertSourceConfig *asc;
+        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(tag->GetData());
+        if (asc == NULL) ParseError("missing configuration data");
+        _conf->alert_source_config.push_back(asc);
     }
 }
 

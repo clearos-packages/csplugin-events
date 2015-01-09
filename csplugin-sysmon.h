@@ -17,14 +17,18 @@
 #ifndef _CSPLUGIN_SYSMON_H
 #define _CSPLUGIN_SYSMON_H
 
+typedef map<int, csSysMonSocketClient *> csPluginSysMonClientMap;
+typedef map<int, string> csSysMonSyslogTextSubIndexMap;
+
 typedef struct
 {
     uint32_t type;
     csRegEx *rx;
     csRegEx *rx_en;
+    csAlertSourceConfig_syslog_pattern *config;
+    csAlertSourceConfig_syslog_pattern *config_en;
 } csSysMonSyslogRegEx;
 
-typedef map<int, csSysMonSocketClient *> csPluginSysMonClientMap;
 typedef vector<csSysMonSyslogRegEx *> csSysMonSyslogRegExVector;
 
 class csPluginSysMon : public csPlugin
@@ -45,6 +49,9 @@ protected:
     void ProcessClientRequest(csSysMonSocketClient *client);
 
     void InsertAlert(const string &desc);
+
+    void SyslogTextSubstitute(string &dst,
+        csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
 
     string locale;
     csSysMonConf *sysmon_conf;

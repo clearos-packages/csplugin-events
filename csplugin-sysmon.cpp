@@ -87,7 +87,8 @@ void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
 
     try {
         if (sysmon_socket_server != NULL) delete sysmon_socket_server;
-        sysmon_socket_server = new csSysMonSocketServer(sysmon_conf->GetSysMonSocketPath());
+        sysmon_socket_server = new csSysMonSocketServer(
+            sysmon_conf->GetSysMonSocketPath());
     } catch (csSysMonSocketException &e) {
         csLog::Log(csLog::Error,
             "%s: %s: %s", name.c_str(), e.estring.c_str(), e.what());
@@ -119,13 +120,20 @@ void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
                 memset(entry, 0, sizeof(csSysMonSyslogRegEx));
                 entry->type = syslog_config->GetAlertType();
 
-                int nmatch = 0;
-                if (entry->type == 6000) nmatch = 3;
-                csLog::Log(csLog::Debug, "%s: nmatch: %d", name.c_str(), nmatch);
-                if (j->first == locale)
-                    entry->rx = new csRegEx(j->second.c_str(), nmatch);
-                if (j->first == "en")
-                    entry->rx_en = new csRegEx(j->second.c_str(), nmatch);
+                if (j->first == locale) {
+                    entry->rx = new csRegEx(
+                        j->second->pattern.c_str(),
+                        j->second->match.size() + 1
+                    );
+                    entry->config = j->second;
+                }
+                if (j->first == "en") {
+                    entry->rx_en = new csRegEx(
+                        j->second->pattern.c_str(),
+                        j->second->match.size() + 1
+                    );
+                    entry->config_en = j->second;
+                }
 
                 if (entry->rx == NULL && entry->rx_en == NULL) {
                     delete entry;
@@ -247,18 +255,23 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
                     j != sysmon_syslog_rx.end(); j++) {
 
                     csRegEx *rx = (*j)->rx;
-                    if (rx == NULL) rx = (*j)->rx_en;
+                    csAlertSourceConfig_syslog_pattern *rx_config = (*j)->config;
+                    if (rx == NULL) {
+                        rx = (*j)->rx_en;
+                        rx_config = (*j)->config_en;
+                    }
                     if (rx == NULL) continue;
                     if (rx->Execute((*i).c_str()) != 0) continue;
 
-                    csLog::Log(csLog::Debug, "%s: %s", name.c_str(), (*i).c_str());
+                    string text;
+                    SyslogTextSubstitute(text, rx, rx_config);
 
-                    ostringstream os;
-                    os << "User " << rx->GetMatch(2);
-                    os << " logged in via " << rx->GetMatch(1);
+                    csLog::Log(csLog::Debug, "%s: %s", name.c_str(), (*i).c_str());
+                    csLog::Log(csLog::Debug, "%s: %s", name.c_str(), text.c_str());
+
                     csSysMonAlert alert;
                     alert.SetType((*j)->type);
-                    alert.SetDescription(os.str());
+                    alert.SetDescription(text);
 
                     sysmon_db->InsertAlert(alert);
 
@@ -385,6 +398,18 @@ void csPluginSysMon::InsertAlert(const string &desc)
     catch (csException &e) {
         csLog::Log(csLog::Error,
             "%s: Database exception: %s", name.c_str(), e.estring.c_str());
+    }
+}
+
+void csPluginSysMon::SyslogTextSubstitute(string &dst,
+    csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config)
+{
+    size_t pos;
+    dst = rx_config->text;
+    csAlertSourceConfig_syslog_match::iterator i;
+    for (i = rx_config->match.begin(); i != rx_config->match.end(); i++) {
+        while ((pos = dst.find(i->second)) != string::npos)
+            dst.replace(pos - 1, i->second.length() + 1, rx->GetMatch(i->first));
     }
 }
 
