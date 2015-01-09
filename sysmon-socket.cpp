@@ -20,6 +20,7 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/socket.h>
 #include <linux/un.h>
 
 #include <clearsync/csplugin.h>
