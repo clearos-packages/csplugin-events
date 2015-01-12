@@ -147,11 +147,16 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
 
-    if ((*tag) == "auto-purge-ttl") {
+    if ((*tag) == "start-up") {
         if (!stack.size() || (*stack.back()) != "plugin")
             ParseError("unexpected tag: " + tag->GetName());
-        //if (!text.size())
-        //    ParseError("missing value for tag: " + tag->GetName());
+        if (tag->ParamExists("initdb") && tag->GetParamValue("initdb") == "true") {
+            _conf->initdb = true;
+        }
+    }
+    else if ((*tag) == "auto-purge-ttl") {
+        if (!stack.size() || (*stack.back()) != "plugin")
+            ParseError("unexpected tag: " + tag->GetName());
         if (!tag->ParamExists("max-age"))
             ParseError("max-age parameter missing");
 

@@ -38,7 +38,7 @@ csPluginSysMon::csPluginSysMon(const string &name,
     csEventClient *parent, size_t stack_size)
     : csPlugin(name, parent, stack_size),
     sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL),
-    sysmon_socket_server(NULL)
+    sysmon_socket_server(NULL), fh_loadavg(NULL)
 {
     ::csGetLocale(locale);
     size_t uscore_delim = locale.find_first_of('_');
@@ -169,7 +169,7 @@ void *csPluginSysMon::Entry(void)
 
     try {
         sysmon_db->Open();
-        sysmon_db->Drop();
+        if (sysmon_conf->InitDb()) sysmon_db->Drop();
         sysmon_db->Create();
     }
     catch (csSysMonDbException &e) {
@@ -177,20 +177,20 @@ void *csPluginSysMon::Entry(void)
             "%s: Database exception: %s", name.c_str(), e.estring.c_str());
     }
 
-//    unsigned long loops = 0ul;
-//    GetStateVar("loops", loops);
-//    csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
-
-    csTimer *purge_timer = new csTimer(500, 3, 3, this);
+    csTimer *purge_timer = new csTimer(
+        _CSPLUGIN_SYSMON_PURGE_TIMER, 3, 3, this
+    );
     purge_timer->Start();
+    csTimer *sysdata_timer = new csTimer(
+        _CSPLUGIN_SYSMON_SYSDATA_TIMER, 10, 10, this
+    );
+    sysdata_timer->Start();
 
-    bool run = true;
-    while (run) {
-        int max_fd = 0;
+    for (bool run = true; run; ) {
+
+        int max_fd = sysmon_socket_server->GetDescriptor();
 
         FD_ZERO(&fds_read);
-
-        max_fd = sysmon_socket_server->GetDescriptor();
         FD_SET(max_fd, &fds_read);
 
         for (csPluginSysMonClientMap::iterator i = sysmon_socket_client.begin();
@@ -209,7 +209,9 @@ void *csPluginSysMon::Entry(void)
 
         if (rc > 0) ProcessEventSelect(fds_read);
 
+        csTimer *timer;
         csEvent *event = EventPop();
+
         if (event != NULL) {
             switch (event->GetId()) {
             case csEVENT_QUIT:
@@ -218,8 +220,13 @@ void *csPluginSysMon::Entry(void)
                 break;
 
             case csEVENT_TIMER:
-                sysmon_db->PurgeAlerts(csSysMonAlert(),
-                    time(NULL) - sysmon_conf->GetMaxAgeTTL());
+                timer = static_cast<csEventTimer *>(event)->GetTimer();
+
+                if (timer->GetId() == _CSPLUGIN_SYSMON_PURGE_TIMER) {
+                    sysmon_db->PurgeAlerts(csSysMonAlert(),
+                        time(NULL) - sysmon_conf->GetMaxAgeTTL());
+                } else if (timer->GetId() == _CSPLUGIN_SYSMON_SYSDATA_TIMER) {
+                }
                 break;
             }
 
@@ -228,15 +235,12 @@ void *csPluginSysMon::Entry(void)
 
         // Select error?
         if (rc == -1) {
-            csLog::Log(csLog::Warning, "%s: select: %s", name.c_str(), strerror(rc));
-            usleep(10000);
+            csLog::Log(csLog::Error, "%s: select: %s", name.c_str(), strerror(rc));
+            break;
         }
     }
 
     delete purge_timer;
-
-//    SetStateVar("loops", loops);
-//    csLog::Log(csLog::Debug, "%s: loops: %lu", name.c_str(), loops);
 
     return NULL;
 }
@@ -248,7 +252,9 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
 
     try {
         if (FD_ISSET(sysmon_syslog->GetDescriptor(), &fds)) {
+
             sysmon_syslog->Read(syslog_messages);
+
             for (vector<string>::iterator i = syslog_messages.begin();
                 i != syslog_messages.end(); i++) {
                 for (csSysMonSyslogRegExVector::iterator j = sysmon_syslog_rx.begin();

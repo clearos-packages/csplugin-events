@@ -17,6 +17,9 @@
 #ifndef _CSPLUGIN_SYSMON_H
 #define _CSPLUGIN_SYSMON_H
 
+#define _CSPLUGIN_SYSMON_PURGE_TIMER    500
+#define _CSPLUGIN_SYSMON_SYSDATA_TIMER  501
+
 typedef map<int, csSysMonSocketClient *> csPluginSysMonClientMap;
 typedef map<int, string> csSysMonSyslogTextSubIndexMap;
 
@@ -58,6 +61,7 @@ protected:
     csSysMonSocketServer *sysmon_socket_server;
     csPluginSysMonClientMap sysmon_socket_client;
     csSysMonSyslogRegExVector sysmon_syslog_rx;
+    FILE *fh_loadavg;
 };
 
 #endif // _CSPLUGIN_SYSMON_H

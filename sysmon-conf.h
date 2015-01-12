@@ -112,7 +112,8 @@ public:
 
     csSysMonConf(csPluginSysMon *parent,
         const char *filename, csPluginXmlParser *parser)
-        : csConf(filename, parser), parent(parent), max_age_ttl(0),
+        : csConf(filename, parser), parent(parent),
+        initdb(false), max_age_ttl(0),
         sysmon_socket_path(_SYSMON_CONF_SYSMON_SOCKET),
         sqlite_db_filename(_SYSMON_CONF_SQLITE_DB),
         syslog_socket_path(_SYSMON_CONF_SYSLOG_SOCKET),
@@ -121,6 +122,7 @@ public:
 
     virtual void Reload(void);
 
+    bool InitDb(void) { return initdb; }
     time_t GetMaxAgeTTL(void) { return max_age_ttl; }
     const string GetSysMonSocketPath(void) const { return sysmon_socket_path; }
     const string GetSqliteDbFilename(void) const { return sqlite_db_filename; }
@@ -136,6 +138,7 @@ protected:
 
     csPluginSysMon *parent;
 
+    bool initdb;
     time_t max_age_ttl;
     string sysmon_socket_path;
     string sqlite_db_filename;
