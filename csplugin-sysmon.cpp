@@ -69,6 +69,7 @@ csPluginSysMon::~csPluginSysMon()
         if ((*i)->rx_en) delete (*i)->rx_en;
         delete (*i);
     }
+    if (fh_loadavg != NULL) fclose(fh_loadavg);
 }
 
 void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
