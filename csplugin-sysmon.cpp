@@ -38,7 +38,7 @@ csPluginSysMon::csPluginSysMon(const string &name,
     csEventClient *parent, size_t stack_size)
     : csPlugin(name, parent, stack_size),
     sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL),
-    sysmon_socket_server(NULL), fh_loadavg(NULL)
+    sysmon_socket_server(NULL)
 {
     ::csGetLocale(locale);
     size_t uscore_delim = locale.find_first_of('_');
@@ -69,7 +69,6 @@ csPluginSysMon::~csPluginSysMon()
         if ((*i)->rx_en) delete (*i)->rx_en;
         delete (*i);
     }
-    if (fh_loadavg != NULL) fclose(fh_loadavg);
 }
 
 void csPluginSysMon::SetConfigurationFile(const string &conf_filename)

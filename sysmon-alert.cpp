@@ -31,8 +31,8 @@ csSysMonAlert::csSysMonAlert()
 }
 
 csSysMonAlert::csSysMonAlert(
-    uint32_t id, uint32_t flags, uint32_t type,
-    const string &uuid, const string &icon, const string &desc)
+    uint32_t id, uint32_t flags, uint32_t type, const string &origin,
+    const string &basename, const string &uuid, const string &desc)
 {
     Reset();
     SetStamp();
@@ -40,8 +40,9 @@ csSysMonAlert::csSysMonAlert(
     data.id = id;
     data.flags = flags;
     data.type = type;
+    data.origin = origin;
+    data.basename = basename;
     data.uuid = uuid;
-    data.icon = icon;
     data.desc = desc;
 }
 
@@ -53,12 +54,13 @@ void csSysMonAlert::Reset(void)
 {
     data.id = 0;
     data.stamp = 0;
-    data.flags = csAF_NULL;
+    data.flags = csAF_LVL_NORM;
     data.type = csAT_NULL;
     data.user = 0;
     data.groups.clear();
+    data.origin.clear();
+    data.basename.clear();
     data.uuid.clear();
-    data.icon.clear();
     data.desc.clear();
 }
 
@@ -95,8 +97,9 @@ void csSysMonAlert::SetData(const csSysMonAlertData &data)
     for (vector<gid_t>::const_iterator i = data.groups.begin();
         i != data.groups.end(); i++) AddGroup((*i));
 
+    SetOrigin(data.origin);
+    SetBasename(data.basename);
     SetUUID(data.uuid);
-    SetIcon(data.icon);
     SetDescription(data.desc);
 }
 

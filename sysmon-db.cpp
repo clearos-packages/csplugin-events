@@ -76,11 +76,14 @@ static int csSysMonDb_sqlite_select_alert(
         else if (!strcasecmp(colname[i], "user")) {
             alert->SetUser(argv[i]);
         }
+        else if (!strcasecmp(colname[i], "origin")) {
+            alert->SetOrigin(argv[i]);
+        }
+        else if (!strcasecmp(colname[i], "basename")) {
+            alert->SetBasename(argv[i]);
+        }
         else if (!strcasecmp(colname[i], "uuid")) {
             alert->SetUUID(argv[i]);
-        }
-        else if (!strcasecmp(colname[i], "icon")) {
-            alert->SetIcon(argv[i]);
         }
         else if (!strcasecmp(colname[i], "desc")) {
             alert->SetDescription(argv[i]);
@@ -236,17 +239,23 @@ void csSysMonDb_sqlite::InsertAlert(const csSysMonAlert &alert)
     if ((rc = sqlite3_bind_int64(insert_alert,
         index, static_cast<sqlite3_int64>(alert.GetUser()))) != SQLITE_OK)
         throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    // Origin 
+    index = sqlite3_bind_parameter_index(insert_alert, "@origin");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: origin");
+    if ((rc = sqlite3_bind_text(insert_alert, index,
+        alert.GetOriginChar(), alert.GetOriginLength(), SQLITE_TRANSIENT)) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
+    // Basename
+    index = sqlite3_bind_parameter_index(insert_alert, "@basename");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: basename");
+    if ((rc = sqlite3_bind_text(insert_alert, index,
+        alert.GetBasenameChar(), alert.GetBasenameLength(), SQLITE_TRANSIENT)) != SQLITE_OK)
+        throw csSysMonDbException(rc, sqlite3_errstr(rc));
     // UUID
     index = sqlite3_bind_parameter_index(insert_alert, "@uuid");
     if (index == 0) throw csException(EINVAL, "SQL parameter missing: uuid");
     if ((rc = sqlite3_bind_text(insert_alert, index,
         alert.GetUUIDChar(), alert.GetUUIDLength(), SQLITE_TRANSIENT)) != SQLITE_OK)
-        throw csSysMonDbException(rc, sqlite3_errstr(rc));
-    // Icon
-    index = sqlite3_bind_parameter_index(insert_alert, "@icon");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: icon");
-    if ((rc = sqlite3_bind_text(insert_alert, index,
-        alert.GetIconChar(), alert.GetIconLength(), SQLITE_TRANSIENT)) != SQLITE_OK)
         throw csSysMonDbException(rc, sqlite3_errstr(rc));
     // Description
     index = sqlite3_bind_parameter_index(insert_alert, "@desc");

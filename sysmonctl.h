@@ -34,8 +34,8 @@ public:
 
     int Exec(csSysMonCtlMode mode,
         int64_t id, uint32_t flags, const string &type,
-        const string &user, const string &uuid, const string &icon,
-        ostringstream &desc);
+        const string &user, const string &origin, const string &basename,
+        const string &uuid, ostringstream &desc);
 
 protected:
     friend class csPluginXmlParser;

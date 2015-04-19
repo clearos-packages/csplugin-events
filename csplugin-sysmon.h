@@ -61,7 +61,6 @@ protected:
     csSysMonSocketServer *sysmon_socket_server;
     csPluginSysMonClientMap sysmon_socket_client;
     csSysMonSyslogRegExVector sysmon_syslog_rx;
-    FILE *fh_loadavg;
 };
 
 #endif // _CSPLUGIN_SYSMON_H

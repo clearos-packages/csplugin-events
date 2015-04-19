@@ -27,8 +27,9 @@ public:
         uint32_t type;
         uid_t user;
         vector<gid_t> groups;
+        string origin;
+        string basename;
         string uuid;
-        string icon;
         string desc;
     } csSysMonAlertData;
 
@@ -56,8 +57,8 @@ public:
     };
 
     csSysMonAlert();
-    csSysMonAlert(uint32_t id, uint32_t flags, uint32_t type,
-        const string &uuid, const string &icon, const string &desc);
+    csSysMonAlert(uint32_t id, uint32_t flags, uint32_t type, const string &origin,
+        const string &basename, const string &uuid, const string &desc);
     virtual ~csSysMonAlert();
 
     void Reset(void);
@@ -71,12 +72,15 @@ public:
     uint32_t GetType(void) const { return data.type; }
     uid_t GetUser(void) const { return data.user; }
     void GetGroups(vector<gid_t> &groups);
+    string GetOrigin(void) const { return data.origin; };
+    const char *GetOriginChar(void) const { return data.origin.c_str(); };
+    int GetOriginLength(void) const { return static_cast<int>(data.origin.length()); };
+    string GetBasename(void) const { return data.basename; };
+    const char *GetBasenameChar(void) const { return data.basename.c_str(); };
+    int GetBasenameLength(void) const { return static_cast<int>(data.basename.length()); };
     string GetUUID(void) const { return data.uuid; };
     const char *GetUUIDChar(void) const { return data.uuid.c_str(); };
     int GetUUIDLength(void) const { return static_cast<int>(data.uuid.length()); };
-    string GetIcon(void) const { return data.icon; };
-    const char *GetIconChar(void) const { return data.icon.c_str(); };
-    int GetIconLength(void) const { return static_cast<int>(data.icon.length()); };
     string GetDescription(void) const { return data.desc; };
     const char *GetDescriptionChar(void) const { return data.desc.c_str(); };
     int GetDescriptionLength(void) const { return static_cast<int>(data.desc.length()); };
@@ -94,8 +98,9 @@ public:
     void SetUser(uid_t uid) { data.user = uid; };
     void AddGroup(gid_t gid);
     void ClearGroups(void) { data.groups.clear(); };
+    void SetOrigin(const string &origin) { data.origin = origin; };
+    void SetBasename(const string &basename) { data.basename = basename; };
     void SetUUID(const string &uuid) { data.uuid = uuid; };
-    void SetIcon(const string &icon) { data.icon = icon; };
     void SetDescription(const string &desc) { data.desc = desc; };
 
 protected:

@@ -17,10 +17,10 @@
 #ifndef _SYSMON_DB_H
 #define _SYSMON_DB_H
 
-#define _SYSMON_DB_SQLITE_CREATE_ALERT  "CREATE TABLE IF NOT EXISTS alerts(id INTEGER PRIMARY KEY AUTOINCREMENT, stamp INTEGER NOT NULL, flags INTEGER NOT NULL, type INTEGER NOT NULL, user INTEGER, uuid TEXT, icon TEXT, desc TEXT NOT NULL);"
+#define _SYSMON_DB_SQLITE_CREATE_ALERT  "CREATE TABLE IF NOT EXISTS alerts(id INTEGER PRIMARY KEY AUTOINCREMENT, stamp INTEGER NOT NULL, flags INTEGER NOT NULL, type INTEGER NOT NULL, user INTEGER, origin TEXT, basename TEXT, uuid TEXT, desc TEXT NOT NULL);"
 #define _SYSMON_DB_SQLITE_CREATE_GROUP  "CREATE TABLE IF NOT EXISTS groups(id INTEGER NOT NULL, gid INTEGER NOT NULL);"
 #define _SYSMON_DB_SQLITE_SELECT_LAST_ID "SELECT seq FROM sqlite_sequence WHERE name = @table_name;"
-#define _SYSMON_DB_SQLITE_INSERT_ALERT  "INSERT INTO alerts (stamp, flags, type, user, uuid, icon, desc) VALUES(@stamp, @flags, @type, @user, @uuid, @icon, @desc);"
+#define _SYSMON_DB_SQLITE_INSERT_ALERT  "INSERT INTO alerts (stamp, flags, type, user, uuid, icon, desc) VALUES(@stamp, @flags, @type, @user, @origin, @basename, @uuid, @desc);"
 #define _SYSMON_DB_SQLITE_PURGE_ALERTS  "DELETE FROM alerts WHERE stamp < @max_age AND flags & @csAF_FLG_READ AND NOT flags & @csAF_FLG_PERSIST;"
 #define _SYSMON_DB_SQLITE_MARK_READ     "UPDATE alerts SET flags = flags | @csAF_FLG_READ WHERE id = @id;"
 #define _SYSMON_DB_SQLITE_SELECT_ALERT  "SELECT * FROM alerts"

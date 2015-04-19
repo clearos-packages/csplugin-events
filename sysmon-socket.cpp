@@ -169,8 +169,9 @@ void csSysMonSocket::ReadPacketVar(csSysMonAlert &alert)
         data.groups.push_back(gid);
     }
 
+    ReadPacketVar(data.origin);
+    ReadPacketVar(data.basename);
     ReadPacketVar(data.uuid);
-    ReadPacketVar(data.icon);
     ReadPacketVar(data.desc);
 
     alert.SetData(data);
@@ -222,8 +223,9 @@ void csSysMonSocket::WritePacketVar(const csSysMonAlert &alert)
     for (i = data->groups.begin(); i != data->groups.end(); i++)
         WritePacketVar((const void *)&(*i), sizeof(uint32_t));
 
+    WritePacketVar(data->origin);
+    WritePacketVar(data->basename);
     WritePacketVar(data->uuid);
-    WritePacketVar(data->icon);
     WritePacketVar(data->desc);
 }
 

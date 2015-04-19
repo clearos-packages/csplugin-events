@@ -94,9 +94,9 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Specify an optional UUID.");
         csLog::Log(csLog::Info,
-            "  -i <icon>, --icon <icon>");
+            "  -i <basename>, --basename <basename>");
         csLog::Log(csLog::Info,
-            "    Specify an optional icon.");
+            "    Specify an optional basename.");
 
         csLog::Log(csLog::Info, "\nMark alert as read:");
         csLog::Log(csLog::Info,
@@ -114,8 +114,8 @@ int main(int argc, char *argv[])
     int rc;
 
     int64_t alert_id = 0;
-    uint32_t alert_flags = csSysMonAlert::csAF_NULL;
-    string alert_type, alert_user, alert_uuid, alert_icon;
+    uint32_t alert_flags = csSysMonAlert::csAF_LVL_NORM;
+    string alert_type, alert_user, alert_origin, alert_basename, alert_uuid;
     ostringstream alert_desc;
 
     csSysMonCtl::csSysMonCtlMode mode = csSysMonCtl::CTLM_NULL;
@@ -131,8 +131,9 @@ int main(int argc, char *argv[])
         { "persistent", 0, 0, 'p' },
         { "type", 1, 0, 't' },
         { "user", 1, 0, 'u' },
+        { "origin", 1, 0, 'o' },
+        { "basename", 1, 0, 'b' },
         { "uuid", 1, 0, 'U' },
-        { "icon", 1, 0, 'i' },
         // Mark alert as read
         { "mark-read", 1, 0, 'm' },
         // List alerts
@@ -149,7 +150,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?spt:u:U:i:m:l", options, &o)) == -1) break;
+            "Vc:dh?spt:u:U:b:o:m:l", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);
@@ -184,8 +185,11 @@ int main(int argc, char *argv[])
         case 'U':
             alert_uuid = optarg;
             break;
-        case 'i':
-            alert_icon = optarg;
+        case 'b':
+            alert_basename = optarg;
+            break;
+        case 'o':
+            alert_origin = optarg;
             break;
         case 'm':
             mode = csSysMonCtl::CTLM_MARK_AS_READ;
@@ -208,7 +212,7 @@ int main(int argc, char *argv[])
     }
 
     rc = sysmon_ctl.Exec(mode, alert_id,
-        alert_flags, alert_type, alert_user, alert_uuid, alert_icon, alert_desc);
+        alert_flags, alert_type, alert_user, alert_origin, alert_basename, alert_uuid, alert_desc);
 
     free(conf_filename);
 
@@ -233,7 +237,7 @@ csSysMonCtl::~csSysMonCtl()
 
 int csSysMonCtl::Exec(csSysMonCtlMode mode,
         int64_t id, uint32_t flags, const string &type,
-        const string &user, const string &uuid, const string &icon,
+        const string &user, const string &origin, const string &basename, const string &uuid,
         ostringstream &desc)
 {
     csSysMonAlert alert;
@@ -269,8 +273,9 @@ int csSysMonCtl::Exec(csSysMonCtlMode mode,
             alert.SetType(sysmon_conf->GetAlertId(type));
             if (user.length()) alert.SetUser(user);
             else alert.SetUser(geteuid());
+            if (origin.length()) alert.SetOrigin(origin);
+            if (basename.length()) alert.SetBasename(basename);
             if (uuid.length()) alert.SetUUID(uuid);
-            if (icon.length()) alert.SetIcon(icon);
             if (desc.tellp()) alert.SetDescription(desc.str());
 
             sysmon_socket->AlertInsert(alert);

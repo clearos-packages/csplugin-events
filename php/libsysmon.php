@@ -32,8 +32,9 @@ class libSysMonAlert
     protected $type;
     protected $user;
     protected $groups;
+    protected $origin;
+    protected $basename;
     protected $uuid;
-    protected $icon;
     protected $desc;
 
     protected static $field_sizes;
@@ -47,12 +48,13 @@ class libSysMonAlert
     {
         $this->id = 0;
         $this->stamp = time();
-        $this->flags = csAF_NULL;
+        $this->flags = csAF_LVL_NORM;
         $this->type = csAT_NULL;
         $this->user = posix_getuid();
         $this->groups = array();
+        $this->origin= null;
+        $this->basename= null;
         $this->uuid = null;
-        $this->icon = null;
         $this->desc = null;
     }
 
@@ -117,14 +119,19 @@ class libSysMonAlert
         return $this->groups;
     }
 
+    public function get_origin()
+    {
+        return $this->origin;
+    }
+
+    public function get_basename()
+    {
+        return $this->basename;
+    }
+
     public function get_uuid()
     {
         return $this->uuid;
-    }
-
-    public function get_icon()
-    {
-        return $this->icon;
     }
 
     public function get_description()
@@ -190,14 +197,19 @@ class libSysMonAlert
         $this->groups = array();
     }
 
+    public function set_origin($origin)
+    {
+        $this->origin = $origin;
+    }
+
+    public function set_basename($basename)
+    {
+        $this->basename = $basename;
+    }
+
     public function set_uuid($uuid)
     {
         $this->uuid = $uuid;
-    }
-
-    public function set_icon($icon)
-    {
-        $this->icon = $icon;
     }
 
     public function set_description($desc)
@@ -420,10 +432,13 @@ class libSysMonitor
         }
 
         $this->read_packet_string($u);
-        if (strlen($u)) $v->set_uuid($u);
+        if (strlen($u)) $v->set_origin($u);
 
         $this->read_packet_string($u);
-        if (strlen($u)) $v->set_icon($u);
+        if (strlen($u)) $v->set_basename($u);
+
+        $this->read_packet_string($u);
+        if (strlen($u)) $v->set_uuid($u);
 
         $this->read_packet_string($u);
         if (strlen($u)) $v->set_description($u);
@@ -475,8 +490,9 @@ class libSysMonitor
         foreach ($groups as $group)
             $this->write_packet_var($group, 'group');
 
+        $this->write_packet_string($v->get_origin());
+        $this->write_packet_string($v->get_basename());
         $this->write_packet_string($v->get_uuid());
-        $this->write_packet_string($v->get_icon());
         $this->write_packet_string($v->get_description());
     }
 
