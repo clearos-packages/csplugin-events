@@ -127,6 +127,8 @@ public:
 
     bool InitDb(void) { return initdb; }
     time_t GetMaxAgeTTL(void) { return max_age_ttl; }
+    const string GetExternConfig(void) const { return extern_config; }
+    const string GetAlertConfig(void) const { return alert_config; }
     const string GetEventsSocketPath(void) const { return events_socket_path; }
     const string GetSqliteDbFilename(void) const { return sqlite_db_filename; }
     const string GetSyslogSocketPath(void) const { return syslog_socket_path; }
@@ -143,6 +145,8 @@ protected:
 
     bool initdb;
     time_t max_age_ttl;
+    string extern_config;
+    string alert_config;
     string events_socket_path;
     string sqlite_db_filename;
     string syslog_socket_path;

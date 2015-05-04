@@ -18,6 +18,10 @@
 #include "config.h"
 #endif
 
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
 #include <clearsync/csplugin.h>
 
 #include "events-conf.h"
@@ -92,6 +96,44 @@ void csEventsConf::Reload(void)
 {
     csConf::Reload();
     parser->Parse();
+
+    // Read and parse external (webconfig) configuration.
+    // XXX: Configuration must be ::csGetPageSize() bytes or smaller (usually 4k).
+    struct stat extern_config_stat;
+    if (stat(extern_config.c_str(), &extern_config_stat)  == 0) {
+        int extern_config_fd = open(extern_config.c_str(), O_RDONLY);
+        if (extern_config_fd < 0)
+            throw csException(errno, "Error opening external configuration");
+
+        char buffer[::csGetPageSize()];
+        char *sp1_ctx, *sp2_ctx, *p, *token, *key, *value;
+        ssize_t bytes = read(extern_config_fd, buffer, ::csGetPageSize());
+
+        if (bytes < 0)
+            throw csException(errno, "Error reading external configuration");
+
+        for (p = buffer; bytes > 0; p = NULL) {
+            token = strtok_r(p, "\n", &sp1_ctx);
+            if (token == NULL) break;
+
+            p = token;
+            key = strtok_r(p, "=", &sp2_ctx);
+            if (key == NULL) continue;
+
+            p = NULL;
+            value = strtok_r(p, "=", &sp2_ctx);
+            if (value == NULL) continue;
+            for (p = value; *p == ' '; p++);
+            value = p;
+
+            if (strncasecmp(key, "status", strlen("status")) == 0) {
+                int status = atoi(value);
+            }
+            if (strncasecmp(key, "autopurge", strlen("autopurge")) == 0)
+                max_age_ttl = (time_t)atoi(value) * (time_t)3600;
+        }
+        close(extern_config_fd);
+    }
 }
 
 void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
@@ -176,6 +218,20 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
             ParseError("max-age parameter missing");
 
         _conf->max_age_ttl = (time_t)atoi(tag->GetParamValue("max-age").c_str());
+    }
+    else if ((*tag) == "extern-config") {
+        if (!stack.size() || (*stack.back()) != "plugin")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("path"))
+            ParseError("path parameter missing");
+        _conf->extern_config = tag->GetParamValue("path");
+    }
+    else if ((*tag) == "alert-config") {
+        if (!stack.size() || (*stack.back()) != "plugin")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("path"))
+            ParseError("path parameter missing");
+        _conf->alert_config = tag->GetParamValue("path");
     }
     else if ((*tag) == "eventsctl") {
         if (!stack.size() || (*stack.back()) != "plugin")
