@@ -29,13 +29,13 @@
 #include <linux/un.h>
 #include <sqlite3.h>
 
-#include "sysmon-conf.h"
-#include "sysmon-alert.h"
-#include "sysmon-db.h"
-#include "sysmon-socket.h"
-#include "sysmon-syslog.h"
-#include "csplugin-sysmon.h"
-#include "sysmonctl.h"
+#include "events-conf.h"
+#include "events-alert.h"
+#include "events-db.h"
+#include "events-socket.h"
+#include "events-syslog.h"
+#include "csplugin-events.h"
+#include "eventsctl.h"
 
 static bool debug = false;
 static char *conf_filename = NULL;
@@ -114,11 +114,11 @@ int main(int argc, char *argv[])
     int rc;
 
     int64_t alert_id = 0;
-    uint32_t alert_flags = csSysMonAlert::csAF_LVL_NORM;
+    uint32_t alert_flags = csEventsAlert::csAF_LVL_NORM;
     string alert_type, alert_user, alert_origin, alert_basename, alert_uuid;
     ostringstream alert_desc;
 
-    csSysMonCtl::csSysMonCtlMode mode = csSysMonCtl::CTLM_NULL;
+    csEventsCtl::csEventsCtlMode mode = csEventsCtl::CTLM_NULL;
 
     static struct option options[] =
     {
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
     csLog *log_stdout = new csLog();
     log_stdout->SetMask(csLog::Info | csLog::Warning | csLog::Error);
 
-    conf_filename = strdup("/etc/clearsync.d/csplugin-sysmon.conf");
+    conf_filename = strdup("/etc/clearsync.d/csplugin-events.conf");
 
     for (optind = 1;; ) {
         int o = 0;
@@ -170,11 +170,11 @@ int main(int argc, char *argv[])
         case 'h':
             usage();
         case 's':
-            if (mode != csSysMonCtl::CTLM_NULL) usage(1);
-            mode = csSysMonCtl::CTLM_SEND;
+            if (mode != csEventsCtl::CTLM_NULL) usage(1);
+            mode = csEventsCtl::CTLM_SEND;
             break;
         case 'p':
-            alert_flags |= csSysMonAlert::csAF_FLG_PERSIST;
+            alert_flags |= csEventsAlert::csAF_FLG_PERSIST;
             break;
         case 't':
             alert_type = optarg;
@@ -192,26 +192,26 @@ int main(int argc, char *argv[])
             alert_origin = optarg;
             break;
         case 'm':
-            mode = csSysMonCtl::CTLM_MARK_AS_READ;
+            mode = csEventsCtl::CTLM_MARK_AS_READ;
             alert_id = (int64_t)atoll(optarg);
             break;
         case 'l':
-            mode = csSysMonCtl::CTLM_LIST_ALERTS;
+            mode = csEventsCtl::CTLM_LIST_ALERTS;
             break;
         }
     }
 
-    csSysMonCtl sysmon_ctl;
-    csSysMonAlert alert;
+    csEventsCtl events_ctl;
+    csEventsAlert alert;
 
-    if (alert_type == "list") mode = csSysMonCtl::CTLM_LIST_TYPES;
+    if (alert_type == "list") mode = csEventsCtl::CTLM_LIST_TYPES;
 
-    if (mode == csSysMonCtl::CTLM_SEND) {
+    if (mode == csEventsCtl::CTLM_SEND) {
         if (argc > optind) alert_desc << argv[optind];
         for (int i = optind + 1; i < argc; i++) alert_desc << " " << argv[i];
     }
 
-    rc = sysmon_ctl.Exec(mode, alert_id,
+    rc = events_ctl.Exec(mode, alert_id,
         alert_flags, alert_type, alert_user, alert_origin, alert_basename, alert_uuid, alert_desc);
 
     free(conf_filename);
@@ -220,40 +220,40 @@ int main(int argc, char *argv[])
     return rc;
 }
 
-csSysMonCtl::csSysMonCtl()
-    : sysmon_conf(NULL), sysmon_socket(NULL)
+csEventsCtl::csEventsCtl()
+    : events_conf(NULL), events_socket(NULL)
 {
     csPluginXmlParser *parser = new csPluginXmlParser();
-    sysmon_conf = new csSysMonConf(NULL, conf_filename, parser);
-    parser->SetConf(dynamic_cast<csConf *>(sysmon_conf));
-    sysmon_conf->Reload();
+    events_conf = new csEventsConf(NULL, conf_filename, parser);
+    parser->SetConf(dynamic_cast<csConf *>(events_conf));
+    events_conf->Reload();
 }
 
-csSysMonCtl::~csSysMonCtl()
+csEventsCtl::~csEventsCtl()
 {
-    if (sysmon_socket) delete sysmon_socket;
-    if (sysmon_conf) delete sysmon_conf;
+    if (events_socket) delete events_socket;
+    if (events_conf) delete events_conf;
 }
 
-int csSysMonCtl::Exec(csSysMonCtlMode mode,
+int csEventsCtl::Exec(csEventsCtlMode mode,
         int64_t id, uint32_t flags, const string &type,
         const string &user, const string &origin, const string &basename, const string &uuid,
         ostringstream &desc)
 {
-    csSysMonAlert alert;
+    csEventsAlert alert;
 //    uint32_t alert_type = 0;
     csAlertIdMap alert_types;
-    vector<csSysMonAlert *> result;
+    vector<csEventsAlert *> result;
     char alert_flags[3];
     struct tm tm_local;
     char date_time[_CS_MAX_TIMESTAMP];
     string alert_type_name, alert_prio;
 
     if (mode == CTLM_SEND || mode == CTLM_MARK_AS_READ || mode == CTLM_LIST_ALERTS) {
-        sysmon_socket = new csSysMonSocketClient(sysmon_conf->GetSysMonSocketPath());
-        sysmon_socket->Connect();
+        events_socket = new csEventsSocketClient(events_conf->GetSysMonSocketPath());
+        events_socket->Connect();
 
-        switch (sysmon_socket->VersionExchange()) {
+        switch (events_socket->VersionExchange()) {
         case csSMPR_OK:
             csLog::Log(csLog::Debug, "Protocol version: OK");
             break;
@@ -270,7 +270,7 @@ int csSysMonCtl::Exec(csSysMonCtlMode mode,
         switch (mode) {
         case CTLM_SEND:
             alert.SetFlags(flags);
-            alert.SetType(sysmon_conf->GetAlertId(type));
+            alert.SetType(events_conf->GetAlertId(type));
             if (user.length()) alert.SetUser(user);
             else alert.SetUser(geteuid());
             if (origin.length()) alert.SetOrigin(origin);
@@ -278,31 +278,31 @@ int csSysMonCtl::Exec(csSysMonCtlMode mode,
             if (uuid.length()) alert.SetUUID(uuid);
             if (desc.tellp()) alert.SetDescription(desc.str());
 
-            sysmon_socket->AlertInsert(alert);
+            events_socket->AlertInsert(alert);
 
             break;
 
         case CTLM_MARK_AS_READ:
             alert.SetId(id);
 
-            sysmon_socket->AlertMarkAsRead(alert);
+            events_socket->AlertMarkAsRead(alert);
 
             break;
 
         case CTLM_LIST_TYPES:
             csLog::Log(csLog::Info, "Alert Types:");
-            sysmon_conf->GetAlertTypes(alert_types);
+            events_conf->GetAlertTypes(alert_types);
             for (csAlertIdMap::iterator i = alert_types.begin(); i != alert_types.end(); i++)
                 csLog::Log(csLog::Info, "  %s", i->second.c_str());
             break;
 
         case CTLM_LIST_ALERTS:
-            sysmon_socket->AlertSelect("ORDER BY stamp", result);
+            events_socket->AlertSelect("ORDER BY stamp", result);
             if (result.size() == 0) {
                 csLog::Log(csLog::Info, "No alerts in database.");
                 break;
             }
-            for (vector<csSysMonAlert *>::iterator i = result.begin();
+            for (vector<csEventsAlert *>::iterator i = result.begin();
                 i != result.end(); i++) {
 
                 const time_t stamp = (*i)->GetStamp();
@@ -319,22 +319,22 @@ int csSysMonCtl::Exec(csSysMonCtlMode mode,
                 }
 
                 try {
-                    alert_type_name = sysmon_conf->GetAlertType((*i)->GetType());
+                    alert_type_name = events_conf->GetAlertType((*i)->GetType());
                 } catch (csException &e) {
                     csLog::Log(csLog::Error, "Unknown alert type ID: %u",
                         (*i)->GetType());
                     alert_type_name = "UNKNOWN";
                 }
 
-                if ((*i)->GetFlags() & csSysMonAlert::csAF_LVL_NORM)
+                if ((*i)->GetFlags() & csEventsAlert::csAF_LVL_NORM)
                     alert_prio = "";
-                else if ((*i)->GetFlags() & csSysMonAlert::csAF_LVL_WARN)
+                else if ((*i)->GetFlags() & csEventsAlert::csAF_LVL_WARN)
                     alert_prio = "WARNING";
-                else if ((*i)->GetFlags() & csSysMonAlert::csAF_LVL_WARN)
+                else if ((*i)->GetFlags() & csEventsAlert::csAF_LVL_WARN)
                     alert_prio = "CRITICAL";
 
-                alert_flags[0] = ((*i)->GetFlags() & csSysMonAlert::csAF_FLG_PERSIST) ? 'p' : '-';
-                alert_flags[1] = ((*i)->GetFlags() & csSysMonAlert::csAF_FLG_READ) ? 'r' : '-';
+                alert_flags[0] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_PERSIST) ? 'p' : '-';
+                alert_flags[1] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_READ) ? 'r' : '-';
                 alert_flags[2] = '\0';
 
                 csLog::Log(csLog::Info, "#%-10llu%-30s%s%s[%s] %s",
@@ -351,7 +351,7 @@ int csSysMonCtl::Exec(csSysMonCtlMode mode,
             csLog::Log(csLog::Info, "Try --help for usage information.");
             return 1;
         }
-    } catch (csSysMonSocketException &e) {
+    } catch (csEventsSocketException &e) {
         csLog::Log(csLog::Error, "Exception: %s: %s", e.estring.c_str(), e.what());
         return 1;
     } catch (csException &e) {

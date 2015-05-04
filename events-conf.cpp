@@ -20,32 +20,32 @@
 
 #include <clearsync/csplugin.h>
 
-#include "sysmon-conf.h"
+#include "events-conf.h"
 
-csSysMonAlertSourceConfig::csSysMonAlertSourceConfig(
-    csSysMonAlertSourceType type, uint32_t alert_type)
+csEventsAlertSourceConfig::csEventsAlertSourceConfig(
+    csEventsAlertSourceType type, uint32_t alert_type)
     : type(type), alert_type(alert_type)
 {
 }
 
-csSysMonAlertSourceConfig::~csSysMonAlertSourceConfig()
+csEventsAlertSourceConfig::~csEventsAlertSourceConfig()
 {
 }
 
-csSysMonAlertSourceConfig_syslog::csSysMonAlertSourceConfig_syslog(
+csEventsAlertSourceConfig_syslog::csEventsAlertSourceConfig_syslog(
     uint32_t alert_type
-) : locale("en"), csSysMonAlertSourceConfig(csAST_SYSLOG, alert_type)
+) : locale("en"), csEventsAlertSourceConfig(csAST_SYSLOG, alert_type)
 {
 }
 
-csSysMonAlertSourceConfig_syslog::~csSysMonAlertSourceConfig_syslog()
+csEventsAlertSourceConfig_syslog::~csEventsAlertSourceConfig_syslog()
 {
     csAlertSourceMap_syslog_pattern::iterator i;
     for (i = patterns.begin(); i != patterns.end(); i++)
         delete i->second;
 }
 
-void csSysMonAlertSourceConfig_syslog::AddText(const string &text)
+void csEventsAlertSourceConfig_syslog::AddText(const string &text)
 {
     csAlertSourceConfig_syslog_pattern *p;
     csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
@@ -59,7 +59,7 @@ void csSysMonAlertSourceConfig_syslog::AddText(const string &text)
     p->text = text;
 }
 
-void csSysMonAlertSourceConfig_syslog::AddMatchVar(int index, const string &name)
+void csEventsAlertSourceConfig_syslog::AddMatchVar(int index, const string &name)
 {
     csAlertSourceConfig_syslog_pattern *p;
     csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
@@ -73,7 +73,7 @@ void csSysMonAlertSourceConfig_syslog::AddMatchVar(int index, const string &name
     p->match[index] = "$" + name;
 }
 
-void csSysMonAlertSourceConfig_syslog::AddPattern(const string &pattern)
+void csEventsAlertSourceConfig_syslog::AddPattern(const string &pattern)
 {
     csAlertSourceConfig_syslog_pattern *p;
     csAlertSourceMap_syslog_pattern::iterator i = patterns.find(locale);
@@ -87,7 +87,7 @@ void csSysMonAlertSourceConfig_syslog::AddPattern(const string &pattern)
     p->pattern = pattern;
 }
 
-void csSysMonConf::Reload(void)
+void csEventsConf::Reload(void)
 {
     csConf::Reload();
     parser->Parse();
@@ -95,7 +95,7 @@ void csSysMonConf::Reload(void)
 
 void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
 {
-    csSysMonConf *_conf = static_cast<csSysMonConf *>(conf);
+    csEventsConf *_conf = static_cast<csEventsConf *>(conf);
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
 
@@ -116,8 +116,8 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
             ParseError("invalid type parameter");
 
         if (tag->GetParamValue("source") == "syslog") {
-            csSysMonAlertSourceConfig_syslog *syslog_config;
-            syslog_config = new csSysMonAlertSourceConfig_syslog(id);
+            csEventsAlertSourceConfig_syslog *syslog_config;
+            syslog_config = new csEventsAlertSourceConfig_syslog(id);
             tag->SetData(syslog_config);
         }
         else
@@ -129,13 +129,13 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
         if (!tag->ParamExists("lang"))
             ParseError("lang parameter missing");
 
-        csSysMonAlertSourceConfig *asc;
-        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
         if (asc == NULL) ParseError("missing configuration data");
-        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
-        csSysMonAlertSourceConfig_syslog *ascs;
-        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+        csEventsAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
         ascs->SetLocale(tag->GetParamValue("lang"));
         tag->SetData(asc);
     }
@@ -143,7 +143,7 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
 
 void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 {
-    csSysMonConf *_conf = static_cast<csSysMonConf *>(conf);
+    csEventsConf *_conf = static_cast<csEventsConf *>(conf);
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
 
@@ -162,12 +162,12 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 
         _conf->max_age_ttl = (time_t)atoi(tag->GetParamValue("max-age").c_str());
     }
-    else if ((*tag) == "sysmonctl") {
+    else if ((*tag) == "eventsctl") {
         if (!stack.size() || (*stack.back()) != "plugin")
             ParseError("unexpected tag: " + tag->GetName());
         if (!tag->ParamExists("socket"))
             ParseError("socket parameter missing");
-        _conf->sysmon_socket_path = tag->GetParamValue("socket");
+        _conf->events_socket_path = tag->GetParamValue("socket");
     }
     else if ((*tag) == "db") {
         if (!stack.size() || (*stack.back()) != "plugin")
@@ -244,14 +244,14 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
         string text = tag->GetText();
         if (text.length() == 0) ParseError("alert text missing");
 
-        csSysMonAlertSourceConfig *asc;
-        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
         if (asc == NULL) ParseError("missing configuration data");
-        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
 
-        csSysMonAlertSourceConfig_syslog *ascs;
-        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+        csEventsAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
 
         ascs->AddText(text);
     }
@@ -263,14 +263,14 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
         if (!tag->ParamExists("name"))
             ParseError("name parameter missing");
 
-        csSysMonAlertSourceConfig *asc;
-        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
         if (asc == NULL) ParseError("missing configuration data");
-        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
 
-        csSysMonAlertSourceConfig_syslog *ascs;
-        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+        csEventsAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
 
         ascs->AddMatchVar(
             atoi(tag->GetParamValue("index").c_str()),
@@ -283,14 +283,14 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
         string text = tag->GetText();
         if (text.length() == 0) ParseError("pattern text missing");
 
-        csSysMonAlertSourceConfig *asc;
-        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(stack.back()->GetData());
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
         if (asc == NULL) ParseError("missing configuration data");
-        if (asc->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG)
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
 
-        csSysMonAlertSourceConfig_syslog *ascs;
-        ascs = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>(stack.back()->GetData());
+        csEventsAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
 
         ascs->AddPattern(text);
     }
@@ -298,21 +298,21 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
         if (!stack.size() || (*stack.back()) != "alerts")
             ParseError("unexpected tag: " + tag->GetName());
 
-        csSysMonAlertSourceConfig *asc;
-        asc = reinterpret_cast<csSysMonAlertSourceConfig *>(tag->GetData());
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(tag->GetData());
         if (asc == NULL) ParseError("missing configuration data");
         _conf->alert_source_config.push_back(asc);
     }
 }
 
-csSysMonConf::~csSysMonConf()
+csEventsConf::~csEventsConf()
 {
     csAlertSourceConfigVector::iterator i;
     for (i = alert_source_config.begin(); i != alert_source_config.end(); i++)
         delete (*i);
 }
 
-uint32_t csSysMonConf::GetAlertId(const string &type)
+uint32_t csEventsConf::GetAlertId(const string &type)
 {
     csAlertIdMap::iterator i = alert_types.begin();
     for ( ; i != alert_types.end(); i++) {
@@ -324,7 +324,7 @@ uint32_t csSysMonConf::GetAlertId(const string &type)
     return i->first;
 }
 
-string csSysMonConf::GetAlertType(uint32_t id)
+string csEventsConf::GetAlertType(uint32_t id)
 {
     csAlertIdMap::iterator i = alert_types.find(id);
     if (i == alert_types.end())
@@ -332,7 +332,7 @@ string csSysMonConf::GetAlertType(uint32_t id)
     return i->second;
 }
 
-void csSysMonConf::GetAlertTypes(csAlertIdMap &types)
+void csEventsConf::GetAlertTypes(csAlertIdMap &types)
 {
     types.clear();
     csAlertIdMap::const_iterator i;
@@ -340,7 +340,7 @@ void csSysMonConf::GetAlertTypes(csAlertIdMap &types)
         types[i->first] = i->second;
 }
 
-void csSysMonConf::GetAlertSourceConfigs(csAlertSourceConfigVector &configs)
+void csEventsConf::GetAlertSourceConfigs(csAlertSourceConfigVector &configs)
 {
     configs.clear();
     csAlertSourceConfigVector::iterator i;

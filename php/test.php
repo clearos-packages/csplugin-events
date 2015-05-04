@@ -1,7 +1,7 @@
 #!/usr/clearos/sandbox/usr/bin/php -q
 <?php
 // Example System Monitor usage for PHP
-include_once('libsysmon.php');
+include_once('libevents.php');
 
 date_default_timezone_set('America/New_York');
 

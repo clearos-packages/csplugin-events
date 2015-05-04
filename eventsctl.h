@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef _SYSMONCTL_H
-#define _SYSMONCTL_H
+#ifndef _EVENTSCTL_H
+#define _EVENTSCTL_H
 
-class csSysMonCtl : public csEventClient
+class csEventsCtl : public csEventClient
 {
 public:
-    enum csSysMonCtlMode
+    enum csEventsCtlMode
     {
         CTLM_NULL,
         CTLM_SEND,
@@ -29,10 +29,10 @@ public:
         CTLM_LIST_ALERTS,
     };
 
-    csSysMonCtl();
-    virtual ~csSysMonCtl();
+    csEventsCtl();
+    virtual ~csEventsCtl();
 
-    int Exec(csSysMonCtlMode mode,
+    int Exec(csEventsCtlMode mode,
         int64_t id, uint32_t flags, const string &type,
         const string &user, const string &origin, const string &basename,
         const string &uuid, ostringstream &desc);
@@ -40,10 +40,10 @@ public:
 protected:
     friend class csPluginXmlParser;
 
-    csSysMonConf *sysmon_conf;
-    csSysMonSocketClient *sysmon_socket;
+    csEventsConf *events_conf;
+    csEventsSocketClient *events_socket;
 };
 
-#endif // _CSPLUGIN_SYSMON_H
+#endif // _CSPLUGIN_EVENTS_H
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

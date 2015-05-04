@@ -29,22 +29,22 @@
 
 #include <sqlite3.h>
 
-#include "sysmon-alert.h"
-#include "sysmon-db.h"
-#include "sysmon-socket.h"
+#include "events-alert.h"
+#include "events-db.h"
+#include "events-socket.h"
 
-csSysMonSocket::csSysMonSocket(const string &socket_path)
+csEventsSocket::csEventsSocket(const string &socket_path)
     : socket_path(socket_path), page_size(0), buffer(NULL),
     buffer_pages(0), buffer_length(0), header(NULL), payload(NULL),
     payload_index(NULL), proto_version(0)
 {
     if ((sd = socket(AF_LOCAL, SOCK_STREAM, 0)) < 0)
-        throw csSysMonSocketException(errno, "Create socket");
+        throw csEventsSocketException(errno, "Create socket");
 
     Create();
 }
 
-csSysMonSocket::csSysMonSocket(int sd, const string &socket_path)
+csEventsSocket::csEventsSocket(int sd, const string &socket_path)
     : sd(sd), socket_path(socket_path), page_size(0), buffer(NULL),
     buffer_pages(0), buffer_length(0), header(NULL), payload(NULL),
     payload_index(NULL), proto_version(0)
@@ -52,7 +52,7 @@ csSysMonSocket::csSysMonSocket(int sd, const string &socket_path)
     Create();
 }
 
-void csSysMonSocket::Create(void)
+void csEventsSocket::Create(void)
 {
     memset(&sa, 0, sizeof(struct sockaddr_un));
 
@@ -60,9 +60,9 @@ void csSysMonSocket::Create(void)
     strncpy(sa.sun_path, socket_path.c_str(), UNIX_PATH_MAX);
 
     int sd_flags = fcntl(sd, F_GETFL, 0);
-    if (sd_flags == -1) throw csSysMonSocketException(errno, "Get socket flags");
+    if (sd_flags == -1) throw csEventsSocketException(errno, "Get socket flags");
     if (fcntl(sd, F_SETFL, sd_flags | O_NONBLOCK) < 0)
-        throw csSysMonSocketException(errno, "Set non-blocking socket mode");
+        throw csEventsSocketException(errno, "Set non-blocking socket mode");
 
     page_size = ::csGetPageSize();
     AllocatePayloadBuffer(page_size);
@@ -70,15 +70,15 @@ void csSysMonSocket::Create(void)
     ResetPacket();
 }
 
-csSysMonSocket::~csSysMonSocket()
+csEventsSocket::~csEventsSocket()
 {
     if (sd > -1) close(sd);
     if (buffer != NULL) free(buffer);
 }
 
-void csSysMonSocket::AllocatePayloadBuffer(ssize_t length)
+void csEventsSocket::AllocatePayloadBuffer(ssize_t length)
 {
-    ssize_t buffer_needed = length + sizeof(csSysMonHeader);
+    ssize_t buffer_needed = length + sizeof(csEventsHeader);
 
     while (buffer_length < buffer_needed) {
         buffer_pages++;
@@ -87,21 +87,21 @@ void csSysMonSocket::AllocatePayloadBuffer(ssize_t length)
         buffer = (uint8_t *)realloc(buffer, buffer_length);
 
         if (buffer == NULL)
-            throw csSysMonSocketException(errno, "Out of memory");
+            throw csEventsSocketException(errno, "Out of memory");
     }
 
-    header = (csSysMonHeader *)buffer;
-    payload = buffer + sizeof(csSysMonHeader);
+    header = (csEventsHeader *)buffer;
+    payload = buffer + sizeof(csEventsHeader);
 }
 
-csSysMonOpCode csSysMonSocket::ReadPacket(void)
+csEventsOpCode csEventsSocket::ReadPacket(void)
 {
     ResetPacket();
 
-    ssize_t bytes = Read((uint8_t *)header, sizeof(csSysMonHeader));
+    ssize_t bytes = Read((uint8_t *)header, sizeof(csEventsHeader));
     if (bytes > 0) {
 //        fprintf(stderr, "Read packet header:\n");
-//        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
+//        ::csHexDump(stderr, (const void *)header, sizeof(csEventsHeader));
         if (header->payload_length > 0) {
             if ((bytes = Read(payload, header->payload_length)) > 0) {
 //                fprintf(stderr, "Read packet payload:\n");
@@ -112,17 +112,17 @@ csSysMonOpCode csSysMonSocket::ReadPacket(void)
         }
     }
 
-    return (csSysMonOpCode)header->opcode;
+    return (csEventsOpCode)header->opcode;
 }
 
-void csSysMonSocket::WritePacket(csSysMonOpCode opcode)
+void csEventsSocket::WritePacket(csEventsOpCode opcode)
 {
     header->opcode = (uint8_t)opcode;
     ssize_t bytes = Write(buffer,
-        sizeof(csSysMonHeader) + header->payload_length);
+        sizeof(csEventsHeader) + header->payload_length);
     if (bytes > 0) {
 //        fprintf(stderr, "Wrote packet header:\n");
-//        ::csHexDump(stderr, (const void *)header, sizeof(csSysMonHeader));
+//        ::csHexDump(stderr, (const void *)header, sizeof(csEventsHeader));
         if (header->payload_length > 0) {
 //            fprintf(stderr, "Wrote packet payload:\n");
 //            ::csHexDump(
@@ -132,7 +132,7 @@ void csSysMonSocket::WritePacket(csSysMonOpCode opcode)
     }
 }
 
-void csSysMonSocket::ReadPacketVar(string &v)
+void csEventsSocket::ReadPacketVar(string &v)
 {
     uint8_t length;
     uint8_t *ptr = payload_index;
@@ -148,9 +148,9 @@ void csSysMonSocket::ReadPacketVar(string &v)
     payload_index = ptr;
 }
 
-void csSysMonSocket::ReadPacketVar(csSysMonAlert &alert)
+void csEventsSocket::ReadPacketVar(csEventsAlert &alert)
 {
-    csSysMonAlert::csSysMonAlertData data;
+    csEventsAlert::csEventsAlertData data;
 
     ReadPacketVar((void *)&data.id, sizeof(int64_t));
     uint32_t stamp;
@@ -177,7 +177,7 @@ void csSysMonSocket::ReadPacketVar(csSysMonAlert &alert)
     alert.SetData(data);
 }
 
-void csSysMonSocket::ReadPacketVar(void *v, size_t length)
+void csEventsSocket::ReadPacketVar(void *v, size_t length)
 {
     uint8_t *ptr = payload_index;
     memcpy(v, (const void *)ptr, length);
@@ -186,7 +186,7 @@ void csSysMonSocket::ReadPacketVar(void *v, size_t length)
     payload_index = ptr;
 }
 
-void csSysMonSocket::WritePacketVar(const string &v)
+void csEventsSocket::WritePacketVar(const string &v)
 {
     uint8_t length = (uint8_t)v.length();
     header->payload_length += v.length() + sizeof(uint8_t);
@@ -205,9 +205,9 @@ void csSysMonSocket::WritePacketVar(const string &v)
     payload_index = ptr;
 }
 
-void csSysMonSocket::WritePacketVar(const csSysMonAlert &alert)
+void csEventsSocket::WritePacketVar(const csEventsAlert &alert)
 {
-    const csSysMonAlert::csSysMonAlertData *data = alert.GetDataPtr();
+    const csEventsAlert::csEventsAlertData *data = alert.GetDataPtr();
 
     WritePacketVar((const void *)&data->id, sizeof(int64_t));
     uint32_t stamp = (uint32_t)data->stamp;
@@ -229,7 +229,7 @@ void csSysMonSocket::WritePacketVar(const csSysMonAlert &alert)
     WritePacketVar(data->desc);
 }
 
-void csSysMonSocket::WritePacketVar(const void *v, size_t length)
+void csEventsSocket::WritePacketVar(const void *v, size_t length)
 {
     header->payload_length += length;
 
@@ -242,14 +242,14 @@ void csSysMonSocket::WritePacketVar(const void *v, size_t length)
     payload_index = ptr;
 }
 
-csSysMonProtoResult csSysMonSocket::VersionExchange(void)
+csEventsProtoResult csEventsSocket::VersionExchange(void)
 {
-    csSysMonProtoResult result = csSMPR_OK;
+    csEventsProtoResult result = csSMPR_OK;
 
     if (mode == csSM_CLIENT) {
         ResetPacket();
 
-        proto_version = _SYSMON_SOCKET_PROTOVER;
+        proto_version = _EVENTS_SOCKET_PROTOVER;
         WritePacketVar((void *)&proto_version, sizeof(uint32_t));
         WritePacket(csSMOC_VERSION);
 
@@ -259,12 +259,12 @@ csSysMonProtoResult csSysMonSocket::VersionExchange(void)
         ReadPacket();
 
         if (header->opcode != csSMOC_VERSION) {
-            throw csSysMonSocketProtocolException(sd,
+            throw csEventsSocketProtocolException(sd,
                 "Unexpected protocol op-code");
         }
 
         if (header->payload_length != sizeof(uint32_t)) {
-            throw csSysMonSocketProtocolException(sd,
+            throw csEventsSocketProtocolException(sd,
                 "Invalid protocol version length");
         }
 
@@ -272,9 +272,9 @@ csSysMonProtoResult csSysMonSocket::VersionExchange(void)
 
         ReadPacketVar((void *)&client_proto_version, sizeof(uint32_t));
 
-        if (client_proto_version > _SYSMON_SOCKET_PROTOVER) {
+        if (client_proto_version > _EVENTS_SOCKET_PROTOVER) {
             WriteResult(csSMPR_VERSION_MISMATCH);
-            throw csSysMonSocketProtocolException(sd,
+            throw csEventsSocketProtocolException(sd,
                 "Unsupported protocol version");
         }
 
@@ -286,7 +286,7 @@ csSysMonProtoResult csSysMonSocket::VersionExchange(void)
     return result;
 }
 
-void csSysMonSocket::AlertInsert(csSysMonAlert &alert)
+void csEventsSocket::AlertInsert(csEventsAlert &alert)
 {
     if (mode == csSM_CLIENT) {
         ResetPacket();
@@ -299,8 +299,8 @@ void csSysMonSocket::AlertInsert(csSysMonAlert &alert)
     }
 }
 
-uint32_t csSysMonSocket::AlertSelect(
-    const string &where, vector<csSysMonAlert *> &result)
+uint32_t csEventsSocket::AlertSelect(
+    const string &where, vector<csEventsAlert *> &result)
 {
     uint32_t matches = 0;
 
@@ -309,7 +309,7 @@ uint32_t csSysMonSocket::AlertSelect(
     WritePacket(csSMOC_ALERT_SELECT);
 
     if (ReadResult() != csSMPR_ALERT_MATCHES)
-        throw csSysMonSocketProtocolException(sd, "Unexpected result");
+        throw csEventsSocketProtocolException(sd, "Unexpected result");
 
     ReadPacketVar((void *)&matches, sizeof(uint32_t));
 
@@ -317,11 +317,11 @@ uint32_t csSysMonSocket::AlertSelect(
 
     for (uint32_t i = 0; i < matches; i++) {
         if (ReadPacket() != csSMOC_ALERT_RECORD) {
-            throw csSysMonSocketProtocolException(sd,
+            throw csEventsSocketProtocolException(sd,
                 "Unexpected protocol op-code");
         }
 
-        csSysMonAlert *alert = new csSysMonAlert();
+        csEventsAlert *alert = new csEventsAlert();
         ReadPacketVar(*alert);
         result.push_back(alert);
     }
@@ -329,7 +329,7 @@ uint32_t csSysMonSocket::AlertSelect(
     return matches;
 }
 
-void csSysMonSocket::AlertSelect(csSysMonDb *db)
+void csEventsSocket::AlertSelect(csEventsDb *db)
 {
     string where;
     ReadPacketVar(where);
@@ -337,29 +337,29 @@ void csSysMonSocket::AlertSelect(csSysMonDb *db)
     size_t eol = where.find_first_of(';');
     if (eol != string::npos) where.resize(eol);
     if (where.length() < 4)
-        throw csSysMonSocketProtocolException(sd, "Invalid where clause");
+        throw csEventsSocketProtocolException(sd, "Invalid where clause");
 
-    vector<csSysMonAlert *> result;
+    vector<csEventsAlert *> result;
 
     try {
         uint32_t matches = db->SelectAlert(where, &result);
 
         WriteResult(csSMPR_ALERT_MATCHES, &matches, sizeof(uint32_t));
 
-        for (vector<csSysMonAlert *>::iterator i = result.begin();
+        for (vector<csEventsAlert *>::iterator i = result.begin();
             i != result.end(); i++) {
             ResetPacket();
             WritePacketVar(*(*i));
             WritePacket(csSMOC_ALERT_RECORD);
         }
     } catch (csException &e) {
-        for (vector<csSysMonAlert *>::iterator i = result.begin();
+        for (vector<csEventsAlert *>::iterator i = result.begin();
             i != result.end(); i++) delete (*i);
         throw;
     }
 }
 
-void csSysMonSocket::AlertMarkAsRead(csSysMonAlert &alert)
+void csEventsSocket::AlertMarkAsRead(csEventsAlert &alert)
 {
     int64_t id;
 
@@ -376,27 +376,27 @@ void csSysMonSocket::AlertMarkAsRead(csSysMonAlert &alert)
     }
 }
 
-csSysMonProtoResult csSysMonSocket::ReadResult(void)
+csEventsProtoResult csEventsSocket::ReadResult(void)
 {
     ReadPacket();
 
     if (header->opcode != csSMOC_RESULT) {
-        throw csSysMonSocketProtocolException(sd,
+        throw csEventsSocketProtocolException(sd,
             "Unexpected protocol op-code");
     }
 
     if (header->payload_length < sizeof(uint8_t)) {
-        throw csSysMonSocketProtocolException(sd,
+        throw csEventsSocketProtocolException(sd,
             "Invalid protocol result length");
     }
 
     uint8_t rc;
     ReadPacketVar((void *)&rc, sizeof(uint8_t));
 
-    return (csSysMonProtoResult)rc;
+    return (csEventsProtoResult)rc;
 }
 
-void csSysMonSocket::WriteResult(csSysMonProtoResult result,
+void csEventsSocket::WriteResult(csEventsProtoResult result,
     const void *data, uint32_t length)
 {
     ResetPacket();
@@ -414,7 +414,7 @@ void csSysMonSocket::WriteResult(csSysMonProtoResult result,
     WritePacket(csSMOC_RESULT);
 }
 
-ssize_t csSysMonSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
+ssize_t csEventsSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
 {
     struct timeval tv, tv_active;
     uint8_t *ptr = data;
@@ -425,7 +425,7 @@ ssize_t csSysMonSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
     while (bytes_left > 0) {
         bytes_read = recv(sd, (char *)ptr, bytes_left, 0);
 
-        if (!bytes_read) throw csSysMonSocketHangupException(sd);
+        if (!bytes_read) throw csEventsSocketHangupException(sd);
         else if (bytes_read < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 gettimeofday(&tv, NULL);
@@ -433,9 +433,9 @@ ssize_t csSysMonSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
                     usleep(csSocketRetry);
                     continue;
                 }
-                throw csSysMonSocketTimeoutException(sd);
+                throw csEventsSocketTimeoutException(sd);
             }
-            throw csSysMonSocketException(errno, "recv", sd);
+            throw csEventsSocketException(errno, "recv", sd);
         }
 
         ptr += bytes_read;
@@ -447,7 +447,7 @@ ssize_t csSysMonSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
     return bytes_read;
 }
 
-ssize_t csSysMonSocket::Write(const uint8_t *data, ssize_t length, time_t timeout)
+ssize_t csEventsSocket::Write(const uint8_t *data, ssize_t length, time_t timeout)
 {
     struct timeval tv, tv_active;
     const uint8_t *ptr = data;
@@ -459,7 +459,7 @@ ssize_t csSysMonSocket::Write(const uint8_t *data, ssize_t length, time_t timeou
     while (bytes_left > 0) {
         bytes_wrote = send(sd, (const char *)ptr, bytes_left, 0);
 
-        if (!bytes_wrote) throw csSysMonSocketHangupException(sd);
+        if (!bytes_wrote) throw csEventsSocketHangupException(sd);
         else if (bytes_wrote < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 gettimeofday(&tv, NULL);
@@ -467,9 +467,9 @@ ssize_t csSysMonSocket::Write(const uint8_t *data, ssize_t length, time_t timeou
                     usleep(csSocketRetry);
                     continue;
                 }
-                throw csSysMonSocketTimeoutException(sd);
+                throw csEventsSocketTimeoutException(sd);
             }
-            throw csSysMonSocketException(errno, "send", sd);
+            throw csEventsSocketException(errno, "send", sd);
         }
 
         ptr += bytes_wrote;
@@ -481,19 +481,19 @@ ssize_t csSysMonSocket::Write(const uint8_t *data, ssize_t length, time_t timeou
     return bytes_wrote;
 }
 
-csSysMonSocketClient::csSysMonSocketClient(const string &socket_path)
-    : csSysMonSocket(socket_path)
+csEventsSocketClient::csEventsSocketClient(const string &socket_path)
+    : csEventsSocket(socket_path)
 {
     mode = csSM_CLIENT;
 }
 
-csSysMonSocketClient::csSysMonSocketClient(int sd, const string &socket_path)
-    : csSysMonSocket(sd, socket_path)
+csEventsSocketClient::csEventsSocketClient(int sd, const string &socket_path)
+    : csEventsSocket(sd, socket_path)
 {
     mode = csSM_SERVER;
 }
 
-void csSysMonSocketClient::Connect(int timeout)
+void csEventsSocketClient::Connect(int timeout)
 {
     int rc, attempts = 0;
     do {
@@ -503,34 +503,34 @@ void csSysMonSocketClient::Connect(int timeout)
     }
     while ((errno == EAGAIN || errno == EWOULDBLOCK) && ++attempts != timeout);
 
-    if (rc != 0) throw csSysMonSocketException(errno, "Socket connect");
+    if (rc != 0) throw csEventsSocketException(errno, "Socket connect");
 
     csLog::Log(csLog::Debug, "SysMon client connected to: %s",
         socket_path.c_str());
 }
 
-csSysMonSocketServer::csSysMonSocketServer(const string &socket_path)
-    : csSysMonSocket(socket_path)
+csEventsSocketServer::csEventsSocketServer(const string &socket_path)
+    : csEventsSocket(socket_path)
 {
     unlink(socket_path.c_str());
 
     if (bind(sd, (struct sockaddr *)&sa, sizeof(struct sockaddr_un)) != 0)
-        throw csSysMonSocketException(errno, "Binding socket");
+        throw csEventsSocketException(errno, "Binding socket");
     if (listen(sd, SOMAXCONN) != 0)
-        throw csSysMonSocketException(errno, "Listening on socket");
+        throw csEventsSocketException(errno, "Listening on socket");
 }
 
-csSysMonSocketClient *csSysMonSocketServer::Accept(void)
+csEventsSocketClient *csEventsSocketServer::Accept(void)
 {
     int client_sd;
     struct sockaddr_un sa_client;
     socklen_t sa_len = sizeof(struct sockaddr_un);
     if ((client_sd = accept(sd, (struct sockaddr *)&sa_client, &sa_len)) < 0)
-        throw csSysMonSocketException(errno, "Accepting client connection");
+        throw csEventsSocketException(errno, "Accepting client connection");
 
     csLog::Log(csLog::Debug, "SysMon client connection accepted: %d", client_sd);
 
-    return new csSysMonSocketClient(client_sd, socket_path);
+    return new csEventsSocketClient(client_sd, socket_path);
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

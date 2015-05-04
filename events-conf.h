@@ -14,52 +14,52 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef _SYSMON_CONF_H
-#define _SYSMON_CONF_H
+#ifndef _EVENTS_CONF_H
+#define _EVENTS_CONF_H
 
-#define _SYSMON_CONF_SQLITE_DB      "/var/lib/csplugin-sysmon/sysmon.db"
-#define _SYSMON_CONF_SYSMON_SOCKET  "/var/lib/csplugin-sysmon/sysmon.socket"
-#define _SYSMON_CONF_SYSWATCH_STATE "/var/lib/syswatch/state"
-#define _SYSMON_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-sysmon/syslog.socket"
+#define _EVENTS_CONF_SQLITE_DB      "/var/lib/csplugin-events/events.db"
+#define _EVENTS_CONF_EVENTS_SOCKET  "/var/lib/csplugin-events/events.socket"
+#define _EVENTS_CONF_SYSWATCH_STATE "/var/lib/syswatch/state"
+#define _EVENTS_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-events/syslog.socket"
 
 typedef map<uint32_t, string> csAlertIdMap;
 
-class csSysMonAlertPatternExistsException : public csException
+class csEventsAlertPatternExistsException : public csException
 {
 public:
-    explicit csSysMonAlertPatternExistsException()
+    explicit csEventsAlertPatternExistsException()
         : csException(EEXIST, "Alert pattern exists") { }
 };
 
-class csSysMonAlertPatternNotFoundException : public csException
+class csEventsAlertPatternNotFoundException : public csException
 {
 public:
-    explicit csSysMonAlertPatternNotFoundException()
+    explicit csEventsAlertPatternNotFoundException()
         : csException(ENOENT, "Alert pattern not found") { }
 };
 
-class csSysMonAlertSourceConfig
+class csEventsAlertSourceConfig
 {
 public:
-    enum csSysMonAlertSourceType
+    enum csEventsAlertSourceType
     {
         csAST_NULL,
         csAST_SYSLOG,
         csAST_SYSWATCH,
     };
 
-    csSysMonAlertSourceConfig(csSysMonAlertSourceType type, uint32_t alert_type);
-    virtual ~csSysMonAlertSourceConfig();
+    csEventsAlertSourceConfig(csEventsAlertSourceType type, uint32_t alert_type);
+    virtual ~csEventsAlertSourceConfig();
 
-    csSysMonAlertSourceType GetType(void) { return type; }
+    csEventsAlertSourceType GetType(void) { return type; }
     uint32_t GetAlertType(void) { return alert_type; }
 
 protected:
-    csSysMonAlertSourceType type;
+    csEventsAlertSourceType type;
     uint32_t alert_type;
 };
 
-typedef vector<csSysMonAlertSourceConfig *> csAlertSourceConfigVector;
+typedef vector<csEventsAlertSourceConfig *> csAlertSourceConfigVector;
 typedef map<int, string> csAlertSourceConfig_syslog_match;
 
 typedef struct
@@ -72,11 +72,11 @@ typedef struct
 typedef map<string,
     csAlertSourceConfig_syslog_pattern *> csAlertSourceMap_syslog_pattern;
 
-class csSysMonAlertSourceConfig_syslog : public csSysMonAlertSourceConfig
+class csEventsAlertSourceConfig_syslog : public csEventsAlertSourceConfig
 {
 public:
-    csSysMonAlertSourceConfig_syslog(uint32_t alert_type);
-    virtual ~csSysMonAlertSourceConfig_syslog();
+    csEventsAlertSourceConfig_syslog(uint32_t alert_type);
+    virtual ~csEventsAlertSourceConfig_syslog();
 
     void SetLocale(const string &locale) { this->locale = locale; }
 
@@ -91,7 +91,7 @@ protected:
     csAlertSourceMap_syslog_pattern patterns;
 };
 
-class csSysMonConf;
+class csEventsConf;
 class csPluginXmlParser : public csXmlParser
 {
 public:
@@ -99,32 +99,32 @@ public:
     virtual void ParseElementClose(csXmlTag *tag);
 };
 
-class csPluginSysMon;
-class csSysMonConf : public csConf
+class csPluginEvents;
+class csEventsConf : public csConf
 {
 public:
-    enum csSysMonAlertSourceType
+    enum csEventsAlertSourceType
     {
         csAST_NULL,
         csAST_SYSLOG,
         csAST_SYSWATCH,
     };
 
-    csSysMonConf(csPluginSysMon *parent,
+    csEventsConf(csPluginEvents *parent,
         const char *filename, csPluginXmlParser *parser)
         : csConf(filename, parser), parent(parent),
         initdb(false), max_age_ttl(0),
-        sysmon_socket_path(_SYSMON_CONF_SYSMON_SOCKET),
-        sqlite_db_filename(_SYSMON_CONF_SQLITE_DB),
-        syslog_socket_path(_SYSMON_CONF_SYSLOG_SOCKET),
-        syswatch_state_path(_SYSMON_CONF_SYSWATCH_STATE) { };
-    virtual ~csSysMonConf();
+        events_socket_path(_EVENTS_CONF_EVENTS_SOCKET),
+        sqlite_db_filename(_EVENTS_CONF_SQLITE_DB),
+        syslog_socket_path(_EVENTS_CONF_SYSLOG_SOCKET),
+        syswatch_state_path(_EVENTS_CONF_SYSWATCH_STATE) { };
+    virtual ~csEventsConf();
 
     virtual void Reload(void);
 
     bool InitDb(void) { return initdb; }
     time_t GetMaxAgeTTL(void) { return max_age_ttl; }
-    const string GetSysMonSocketPath(void) const { return sysmon_socket_path; }
+    const string GetSysMonSocketPath(void) const { return events_socket_path; }
     const string GetSqliteDbFilename(void) const { return sqlite_db_filename; }
     const string GetSyslogSocketPath(void) const { return syslog_socket_path; }
     const string GetSyswatchStatePath(void) const { return syswatch_state_path; }
@@ -136,11 +136,11 @@ public:
 protected:
     friend class csPluginXmlParser;
 
-    csPluginSysMon *parent;
+    csPluginEvents *parent;
 
     bool initdb;
     time_t max_age_ttl;
-    string sysmon_socket_path;
+    string events_socket_path;
     string sqlite_db_filename;
     string syslog_socket_path;
     string syswatch_state_path;
@@ -148,6 +148,6 @@ protected:
     csAlertSourceConfigVector alert_source_config;
 };
 
-#endif // _SYSMON_CONF_H
+#endif // _EVENTS_CONF_H
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

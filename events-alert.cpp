@@ -22,15 +22,15 @@
 
 #include <pwd.h>
 
-#include "sysmon-alert.h"
+#include "events-alert.h"
 
-csSysMonAlert::csSysMonAlert()
+csEventsAlert::csEventsAlert()
 {
     Reset();
     SetStamp();
 }
 
-csSysMonAlert::csSysMonAlert(
+csEventsAlert::csEventsAlert(
     uint32_t id, uint32_t flags, uint32_t type, const string &origin,
     const string &basename, const string &uuid, const string &desc)
 {
@@ -46,11 +46,11 @@ csSysMonAlert::csSysMonAlert(
     data.desc = desc;
 }
 
-csSysMonAlert::~csSysMonAlert()
+csEventsAlert::~csEventsAlert()
 {
 }
 
-void csSysMonAlert::Reset(void)
+void csEventsAlert::Reset(void)
 {
     data.id = 0;
     data.stamp = 0;
@@ -64,7 +64,7 @@ void csSysMonAlert::Reset(void)
     data.desc.clear();
 }
 
-void csSysMonAlert::AddGroup(gid_t gid)
+void csEventsAlert::AddGroup(gid_t gid)
 {
     bool found = false;
     for (vector<gid_t>::iterator i = data.groups.begin();
@@ -77,7 +77,7 @@ void csSysMonAlert::AddGroup(gid_t gid)
     if (!found) data.groups.push_back(gid);
 }
 
-void csSysMonAlert::GetGroups(vector<gid_t> &groups)
+void csEventsAlert::GetGroups(vector<gid_t> &groups)
 {
     groups.clear();
     for (vector<gid_t>::iterator i = data.groups.begin();
@@ -86,7 +86,7 @@ void csSysMonAlert::GetGroups(vector<gid_t> &groups)
     }
 }
 
-void csSysMonAlert::SetData(const csSysMonAlertData &data)
+void csEventsAlert::SetData(const csEventsAlertData &data)
 {
     SetId(data.id);
     SetStamp(data.stamp);
@@ -103,7 +103,7 @@ void csSysMonAlert::SetData(const csSysMonAlertData &data)
     SetDescription(data.desc);
 }
 
-void csSysMonAlert::SetUser(const string &user)
+void csEventsAlert::SetUser(const string &user)
 {
     struct passwd *pwent = NULL;
 

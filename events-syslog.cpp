@@ -25,9 +25,9 @@
 
 #include <clearsync/csplugin.h>
 
-#include "sysmon-syslog.h"
+#include "events-syslog.h"
 
-csSysMonSyslog::csSysMonSyslog(const string &socket_path)
+csEventsSyslog::csEventsSyslog(const string &socket_path)
     : rx_bufsize(0), buffer(NULL)
 {
     if ((sd = socket(PF_LOCAL, SOCK_DGRAM, 0)) < 0)
@@ -62,13 +62,13 @@ csSysMonSyslog::csSysMonSyslog(const string &socket_path)
     if (buffer == NULL) throw csException(ENOMEM, "buffer");
 }
 
-csSysMonSyslog::~csSysMonSyslog()
+csEventsSyslog::~csEventsSyslog()
 {
     if (sd >= 0) close(sd);
     if (buffer != NULL) delete [] buffer;
 }
 
-void csSysMonSyslog::Read(vector<string> &messages)
+void csEventsSyslog::Read(vector<string> &messages)
 {
     for ( ;; ) {
         memset(buffer, 0, rx_bufsize);

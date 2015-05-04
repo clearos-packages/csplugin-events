@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef _SYSMON_SYSLOG
-#define _SYSMON_SYSLOG
+#ifndef _EVENTS_SYSLOG
+#define _EVENTS_SYSLOG
 
-class csSysMonSyslog
+class csEventsSyslog
 {
 public:
-    csSysMonSyslog(const string &socket_path);
-    virtual ~csSysMonSyslog();
+    csEventsSyslog(const string &socket_path);
+    virtual ~csEventsSyslog();
 
     int GetDescriptor(void) { return sd; }
     void Read(vector<string> &messages);
@@ -32,6 +32,6 @@ protected:
     char *buffer;
 };
 
-#endif // _SYSMON_SYSLOG
+#endif // _EVENTS_SYSLOG
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

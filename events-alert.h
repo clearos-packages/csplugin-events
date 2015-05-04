@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef _SYSMON_ALERT_H
-#define _SYSMON_ALERT_H
+#ifndef _EVENTS_ALERT_H
+#define _EVENTS_ALERT_H
 
-class csSysMonAlert
+class csEventsAlert
 {
 public:
     typedef struct {
@@ -31,7 +31,7 @@ public:
         string basename;
         string uuid;
         string desc;
-    } csSysMonAlertData;
+    } csEventsAlertData;
 
     enum csAlertFlags {
         csAF_NULL           = 0,
@@ -56,15 +56,15 @@ public:
         csAT_NULL           = 0,
     };
 
-    csSysMonAlert();
-    csSysMonAlert(uint32_t id, uint32_t flags, uint32_t type, const string &origin,
+    csEventsAlert();
+    csEventsAlert(uint32_t id, uint32_t flags, uint32_t type, const string &origin,
         const string &basename, const string &uuid, const string &desc);
-    virtual ~csSysMonAlert();
+    virtual ~csEventsAlert();
 
     void Reset(void);
 
-    const csSysMonAlertData *GetDataPtr(void) const
-        { return (const csSysMonAlertData *)&data; }
+    const csEventsAlertData *GetDataPtr(void) const
+        { return (const csEventsAlertData *)&data; }
 
     int64_t GetId(void) const { return data.id; }
     time_t GetStamp(void) const { return data.stamp; }
@@ -85,7 +85,7 @@ public:
     const char *GetDescriptionChar(void) const { return data.desc.c_str(); };
     int GetDescriptionLength(void) const { return static_cast<int>(data.desc.length()); };
 
-    void SetData(const csSysMonAlertData &data);
+    void SetData(const csEventsAlertData &data);
 
     void SetId(int64_t id) { data.id = id; };
     void SetStamp(void) { data.stamp = time(NULL); };
@@ -104,9 +104,9 @@ public:
     void SetDescription(const string &desc) { data.desc = desc; };
 
 protected:
-    csSysMonAlertData data;
+    csEventsAlertData data;
 };
 
-#endif // _SYSMON_ALERT_H
+#endif // _EVENTS_ALERT_H
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef _CSPLUGIN_SYSMON_H
-#define _CSPLUGIN_SYSMON_H
+#ifndef _CSPLUGIN_EVENTS_H
+#define _CSPLUGIN_EVENTS_H
 
-#define _CSPLUGIN_SYSMON_PURGE_TIMER    500
-#define _CSPLUGIN_SYSMON_SYSDATA_TIMER  501
+#define _CSPLUGIN_EVENTS_PURGE_TIMER    500
+#define _CSPLUGIN_EVENTS_SYSDATA_TIMER  501
 
-typedef map<int, csSysMonSocketClient *> csPluginSysMonClientMap;
-typedef map<int, string> csSysMonSyslogTextSubIndexMap;
+typedef map<int, csEventsSocketClient *> csPluginEventsClientMap;
+typedef map<int, string> csEventsSyslogTextSubIndexMap;
 
 typedef struct
 {
@@ -30,16 +30,16 @@ typedef struct
     csRegEx *rx_en;
     csAlertSourceConfig_syslog_pattern *config;
     csAlertSourceConfig_syslog_pattern *config_en;
-} csSysMonSyslogRegEx;
+} csEventsSyslogRegEx;
 
-typedef vector<csSysMonSyslogRegEx *> csSysMonSyslogRegExVector;
+typedef vector<csEventsSyslogRegEx *> csEventsSyslogRegExVector;
 
-class csPluginSysMon : public csPlugin
+class csPluginEvents : public csPlugin
 {
 public:
-    csPluginSysMon(const string &name,
+    csPluginEvents(const string &name,
         csEventClient *parent, size_t stack_size);
-    virtual ~csPluginSysMon();
+    virtual ~csPluginEvents();
 
     virtual void SetConfigurationFile(const string &conf_filename);
 
@@ -49,20 +49,20 @@ protected:
     friend class csPluginXmlParser;
 
     void ProcessEventSelect(fd_set &fds);
-    void ProcessClientRequest(csSysMonSocketClient *client);
+    void ProcessClientRequest(csEventsSocketClient *client);
 
     void SyslogTextSubstitute(string &dst,
         csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
 
     string locale;
-    csSysMonConf *sysmon_conf;
-    csSysMonDb *sysmon_db;
-    csSysMonSyslog *sysmon_syslog;
-    csSysMonSocketServer *sysmon_socket_server;
-    csPluginSysMonClientMap sysmon_socket_client;
-    csSysMonSyslogRegExVector sysmon_syslog_rx;
+    csEventsConf *events_conf;
+    csEventsDb *events_db;
+    csEventsSyslog *events_syslog;
+    csEventsSocketServer *events_socket_server;
+    csPluginEventsClientMap events_socket_client;
+    csEventsSyslogRegExVector events_syslog_rx;
 };
 
-#endif // _CSPLUGIN_SYSMON_H
+#endif // _CSPLUGIN_EVENTS_H
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

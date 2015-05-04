@@ -27,18 +27,18 @@
 #include <linux/un.h>
 #include <sqlite3.h>
 
-#include "sysmon-conf.h"
-#include "sysmon-alert.h"
-#include "sysmon-db.h"
-#include "sysmon-socket.h"
-#include "sysmon-syslog.h"
-#include "csplugin-sysmon.h"
+#include "events-conf.h"
+#include "events-alert.h"
+#include "events-db.h"
+#include "events-socket.h"
+#include "events-syslog.h"
+#include "csplugin-events.h"
 
-csPluginSysMon::csPluginSysMon(const string &name,
+csPluginEvents::csPluginEvents(const string &name,
     csEventClient *parent, size_t stack_size)
     : csPlugin(name, parent, stack_size),
-    sysmon_conf(NULL), sysmon_db(NULL), sysmon_syslog(NULL),
-    sysmon_socket_server(NULL)
+    events_conf(NULL), events_db(NULL), events_syslog(NULL),
+    events_socket_server(NULL)
 {
     ::csGetLocale(locale);
     size_t uscore_delim = locale.find_first_of('_');
@@ -53,49 +53,49 @@ csPluginSysMon::csPluginSysMon(const string &name,
         name.c_str(), locale.c_str());
 }
 
-csPluginSysMon::~csPluginSysMon()
+csPluginEvents::~csPluginEvents()
 {
     Join();
 
-    if (sysmon_conf != NULL) delete sysmon_conf;
-    if (sysmon_db != NULL) delete sysmon_db;
-    if (sysmon_syslog != NULL) delete sysmon_syslog;
-    if (sysmon_socket_server != NULL) delete sysmon_socket_server;
-    for (csPluginSysMonClientMap::iterator i = sysmon_socket_client.begin();
-        i != sysmon_socket_client.end(); i++) delete i->second;
-    for (csSysMonSyslogRegExVector::iterator i = sysmon_syslog_rx.begin();
-        i != sysmon_syslog_rx.end(); i++) {
+    if (events_conf != NULL) delete events_conf;
+    if (events_db != NULL) delete events_db;
+    if (events_syslog != NULL) delete events_syslog;
+    if (events_socket_server != NULL) delete events_socket_server;
+    for (csPluginEventsClientMap::iterator i = events_socket_client.begin();
+        i != events_socket_client.end(); i++) delete i->second;
+    for (csEventsSyslogRegExVector::iterator i = events_syslog_rx.begin();
+        i != events_syslog_rx.end(); i++) {
         if ((*i)->rx) delete (*i)->rx;
         if ((*i)->rx_en) delete (*i)->rx_en;
         delete (*i);
     }
 }
 
-void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
+void csPluginEvents::SetConfigurationFile(const string &conf_filename)
 {
-    if (sysmon_conf != NULL) delete sysmon_conf;
+    if (events_conf != NULL) delete events_conf;
 
     csPluginXmlParser *parser = new csPluginXmlParser();
-    sysmon_conf = new csSysMonConf(this, conf_filename.c_str(), parser);
-    parser->SetConf(dynamic_cast<csConf *>(sysmon_conf));
-    sysmon_conf->Reload();
+    events_conf = new csEventsConf(this, conf_filename.c_str(), parser);
+    parser->SetConf(dynamic_cast<csConf *>(events_conf));
+    events_conf->Reload();
 
-    if (sysmon_db != NULL) delete sysmon_db;
-    sysmon_db = new csSysMonDb_sqlite(sysmon_conf->GetSqliteDbFilename());
-    if (sysmon_syslog != NULL) delete sysmon_syslog;
-    sysmon_syslog = new csSysMonSyslog(sysmon_conf->GetSyslogSocketPath());
+    if (events_db != NULL) delete events_db;
+    events_db = new csEventsDb_sqlite(events_conf->GetSqliteDbFilename());
+    if (events_syslog != NULL) delete events_syslog;
+    events_syslog = new csEventsSyslog(events_conf->GetSyslogSocketPath());
 
     try {
-        if (sysmon_socket_server != NULL) delete sysmon_socket_server;
-        sysmon_socket_server = new csSysMonSocketServer(
-            sysmon_conf->GetSysMonSocketPath());
-    } catch (csSysMonSocketException &e) {
+        if (events_socket_server != NULL) delete events_socket_server;
+        events_socket_server = new csEventsSocketServer(
+            events_conf->GetSysMonSocketPath());
+    } catch (csEventsSocketException &e) {
         csLog::Log(csLog::Error,
             "%s: %s: %s", name.c_str(), e.estring.c_str(), e.what());
     }
 
     csAlertSourceConfigVector alert_sources;
-    sysmon_conf->GetAlertSourceConfigs(alert_sources);
+    events_conf->GetAlertSourceConfigs(alert_sources);
 
     int compiled = 0;
     csAlertSourceMap_syslog_pattern *patterns;
@@ -103,21 +103,21 @@ void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
     for (csAlertSourceConfigVector::iterator i = alert_sources.begin();
         i != alert_sources.end(); i++) {
 
-        if ((*i)->GetType() != csSysMonAlertSourceConfig::csAST_SYSLOG) continue;
+        if ((*i)->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG) continue;
 
-        csSysMonAlertSourceConfig_syslog *syslog_config;
-        syslog_config = reinterpret_cast<csSysMonAlertSourceConfig_syslog *>((*i));
+        csEventsAlertSourceConfig_syslog *syslog_config;
+        syslog_config = reinterpret_cast<csEventsAlertSourceConfig_syslog *>((*i));
 
         patterns = syslog_config->GetPatterns();
 
         for (csAlertSourceMap_syslog_pattern::iterator j = patterns->begin();
             j != patterns->end(); j++) {
 
-            csSysMonSyslogRegEx *entry = NULL;
+            csEventsSyslogRegEx *entry = NULL;
 
             try {
-                entry = new csSysMonSyslogRegEx;
-                memset(entry, 0, sizeof(csSysMonSyslogRegEx));
+                entry = new csEventsSyslogRegEx;
+                memset(entry, 0, sizeof(csEventsSyslogRegEx));
                 entry->type = syslog_config->GetAlertType();
 
                 if (j->first == locale) {
@@ -151,7 +151,7 @@ void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
             }
 
             if (entry != NULL)
-                sysmon_syslog_rx.push_back(entry);
+                events_syslog_rx.push_back(entry);
         }
     }
 
@@ -159,7 +159,7 @@ void csPluginSysMon::SetConfigurationFile(const string &conf_filename)
         "%s: Compiled %d regular expressions", name.c_str(), compiled);
 }
 
-void *csPluginSysMon::Entry(void)
+void *csPluginEvents::Entry(void)
 {
     int rc;
     fd_set fds_read;
@@ -168,40 +168,40 @@ void *csPluginSysMon::Entry(void)
     csLog::Log(csLog::Debug, "%s: Started", name.c_str());
 
     try {
-        sysmon_db->Open();
-        if (sysmon_conf->InitDb()) sysmon_db->Drop();
-        sysmon_db->Create();
+        events_db->Open();
+        if (events_conf->InitDb()) events_db->Drop();
+        events_db->Create();
     }
-    catch (csSysMonDbException &e) {
+    catch (csEventsDbException &e) {
         csLog::Log(csLog::Error,
             "%s: Database exception: %s", name.c_str(), e.estring.c_str());
     }
 
     csTimer *purge_timer = new csTimer(
-        _CSPLUGIN_SYSMON_PURGE_TIMER, 3, 3, this
+        _CSPLUGIN_EVENTS_PURGE_TIMER, 3, 3, this
     );
     purge_timer->Start();
     csTimer *sysdata_timer = new csTimer(
-        _CSPLUGIN_SYSMON_SYSDATA_TIMER, 10, 10, this
+        _CSPLUGIN_EVENTS_SYSDATA_TIMER, 10, 10, this
     );
     sysdata_timer->Start();
 
     for (bool run = true; run; ) {
 
-        int max_fd = sysmon_socket_server->GetDescriptor();
+        int max_fd = events_socket_server->GetDescriptor();
 
         FD_ZERO(&fds_read);
         FD_SET(max_fd, &fds_read);
 
-        for (csPluginSysMonClientMap::iterator i = sysmon_socket_client.begin();
-            i != sysmon_socket_client.end(); i++) {
+        for (csPluginEventsClientMap::iterator i = events_socket_client.begin();
+            i != events_socket_client.end(); i++) {
             FD_SET(i->first, &fds_read);
             if (i->first > max_fd) max_fd = i->first;
         }
 
-        FD_SET(sysmon_syslog->GetDescriptor(), &fds_read);
-        if (sysmon_syslog->GetDescriptor() > max_fd)
-            max_fd = sysmon_syslog->GetDescriptor();
+        FD_SET(events_syslog->GetDescriptor(), &fds_read);
+        if (events_syslog->GetDescriptor() > max_fd)
+            max_fd = events_syslog->GetDescriptor();
 
         tv.tv_sec = 1; tv.tv_usec = 0;
 
@@ -222,10 +222,10 @@ void *csPluginSysMon::Entry(void)
             case csEVENT_TIMER:
                 timer = static_cast<csEventTimer *>(event)->GetTimer();
 
-                if (timer->GetId() == _CSPLUGIN_SYSMON_PURGE_TIMER) {
-                    sysmon_db->PurgeAlerts(csSysMonAlert(),
-                        time(NULL) - sysmon_conf->GetMaxAgeTTL());
-                } else if (timer->GetId() == _CSPLUGIN_SYSMON_SYSDATA_TIMER) {
+                if (timer->GetId() == _CSPLUGIN_EVENTS_PURGE_TIMER) {
+                    events_db->PurgeAlerts(csEventsAlert(),
+                        time(NULL) - events_conf->GetMaxAgeTTL());
+                } else if (timer->GetId() == _CSPLUGIN_EVENTS_SYSDATA_TIMER) {
                 }
                 break;
             }
@@ -245,20 +245,20 @@ void *csPluginSysMon::Entry(void)
     return NULL;
 }
 
-void csPluginSysMon::ProcessEventSelect(fd_set &fds)
+void csPluginEvents::ProcessEventSelect(fd_set &fds)
 {
     vector<string> syslog_messages;
-    csPluginSysMonClientMap::iterator sci;
+    csPluginEventsClientMap::iterator sci;
 
     try {
-        if (FD_ISSET(sysmon_syslog->GetDescriptor(), &fds)) {
+        if (FD_ISSET(events_syslog->GetDescriptor(), &fds)) {
 
-            sysmon_syslog->Read(syslog_messages);
+            events_syslog->Read(syslog_messages);
 
             for (vector<string>::iterator i = syslog_messages.begin();
                 i != syslog_messages.end(); i++) {
-                for (csSysMonSyslogRegExVector::iterator j = sysmon_syslog_rx.begin();
-                    j != sysmon_syslog_rx.end(); j++) {
+                for (csEventsSyslogRegExVector::iterator j = events_syslog_rx.begin();
+                    j != events_syslog_rx.end(); j++) {
 
                     csRegEx *rx = (*j)->rx;
                     csAlertSourceConfig_syslog_pattern *rx_config = (*j)->config;
@@ -276,77 +276,77 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
                     csLog::Log(csLog::Debug, "%s: %s", name.c_str(), (*i).c_str());
                     csLog::Log(csLog::Debug, "%s: %s", name.c_str(), text.c_str());
 
-                    csSysMonAlert alert;
+                    csEventsAlert alert;
                     alert.SetType((*j)->type);
                     alert.SetDescription(text);
 
-                    sysmon_db->InsertAlert(alert);
+                    events_db->InsertAlert(alert);
 
                     break;
                 }
             }
         }
 
-        for (csPluginSysMonClientMap::iterator i = sysmon_socket_client.begin();
-            i != sysmon_socket_client.end(); i++) {
+        for (csPluginEventsClientMap::iterator i = events_socket_client.begin();
+            i != events_socket_client.end(); i++) {
             if (FD_ISSET(i->first, &fds)) ProcessClientRequest(i->second);
         }
 
-        if (FD_ISSET(sysmon_socket_server->GetDescriptor(), &fds)) {
+        if (FD_ISSET(events_socket_server->GetDescriptor(), &fds)) {
 
-            csSysMonSocketClient *client = sysmon_socket_server->Accept();
+            csEventsSocketClient *client = events_socket_server->Accept();
 
             if (client != NULL) {
-                sysmon_socket_client[client->GetDescriptor()] = client;
+                events_socket_client[client->GetDescriptor()] = client;
                 csLog::Log(csLog::Debug, "%s: Accepted new client connection",
                     name.c_str());
             }
        }
     }
-    catch (csSysMonSocketHangupException &e) {
+    catch (csEventsSocketHangupException &e) {
         csLog::Log(csLog::Warning, "%s: Socket hang-up: %d",
             name.c_str(), e.GetDescriptor());
-        sci = sysmon_socket_client.find(e.GetDescriptor());
-        if (sci == sysmon_socket_client.end()) {
+        sci = events_socket_client.find(e.GetDescriptor());
+        if (sci == events_socket_client.end()) {
             csLog::Log(csLog::Error, "%s: Socket hang-up on unknown descriptor: %d",
                 name.c_str(), e.GetDescriptor());
         }
         else {
             delete sci->second;
-            sysmon_socket_client.erase(sci);
+            events_socket_client.erase(sci);
         }
     }
-    catch (csSysMonSocketTimeoutException &e) {
+    catch (csEventsSocketTimeoutException &e) {
         csLog::Log(csLog::Error, "%s: Socket time-out: %d",
             name.c_str(), e.GetDescriptor());
-        sci = sysmon_socket_client.find(e.GetDescriptor());
-        if (sci == sysmon_socket_client.end()) {
+        sci = events_socket_client.find(e.GetDescriptor());
+        if (sci == events_socket_client.end()) {
             csLog::Log(csLog::Error, "%s: Socket time-out on unknown descriptor: %d",
                 name.c_str(), e.GetDescriptor());
         }
         else {
             delete sci->second;
-            sysmon_socket_client.erase(sci);
+            events_socket_client.erase(sci);
         }
     }
-    catch (csSysMonSocketProtocolException &e) {
+    catch (csEventsSocketProtocolException &e) {
         csLog::Log(csLog::Error, "%s: Protocol error: %d: %s",
             name.c_str(), e.GetDescriptor(), e.estring.c_str());
-        sci = sysmon_socket_client.find(e.GetDescriptor());
-        if (sci == sysmon_socket_client.end()) {
+        sci = events_socket_client.find(e.GetDescriptor());
+        if (sci == events_socket_client.end()) {
             csLog::Log(csLog::Error, "%s: Protocol error on unknown descriptor: %d",
                 name.c_str(), e.GetDescriptor());
         }
         else {
             delete sci->second;
-            sysmon_socket_client.erase(sci);
+            events_socket_client.erase(sci);
         }
     }
-    catch (csSysMonSocketException &e) {
+    catch (csEventsSocketException &e) {
         csLog::Log(csLog::Error, "%s: Socket exception: %s: %s",
             name.c_str(), e.estring.c_str(), e.what());
     }
-    catch (csSysMonDbException &e) {
+    catch (csEventsDbException &e) {
         csLog::Log(csLog::Error, "%s: Database exception: %s",
             name.c_str(), e.estring.c_str());
     }
@@ -356,9 +356,9 @@ void csPluginSysMon::ProcessEventSelect(fd_set &fds)
     }
 }
 
-void csPluginSysMon::ProcessClientRequest(csSysMonSocketClient *client)
+void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
 {
-    csSysMonAlert alert;
+    csEventsAlert alert;
 
     if (client->GetProtoVersion() == 0) {
         client->VersionExchange();
@@ -372,14 +372,14 @@ void csPluginSysMon::ProcessClientRequest(csSysMonSocketClient *client)
     switch (client->ReadPacket()) {
     case csSMOC_ALERT_INSERT:
         client->AlertInsert(alert);
-        sysmon_db->InsertAlert(alert);
+        events_db->InsertAlert(alert);
         break;
     case csSMOC_ALERT_SELECT:
-        client->AlertSelect(sysmon_db);
+        client->AlertSelect(events_db);
         break;
     case csSMOC_ALERT_MARK_AS_READ:
         client->AlertMarkAsRead(alert);
-        sysmon_db->MarkAsRead(alert.GetId());
+        events_db->MarkAsRead(alert.GetId());
         break;
     default:
         csLog::Log(csLog::Warning,
@@ -387,7 +387,7 @@ void csPluginSysMon::ProcessClientRequest(csSysMonSocketClient *client)
     }
 }
 
-void csPluginSysMon::SyslogTextSubstitute(string &dst,
+void csPluginEvents::SyslogTextSubstitute(string &dst,
     csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config)
 {
     size_t pos;
@@ -403,6 +403,6 @@ void csPluginSysMon::SyslogTextSubstitute(string &dst,
     }
 }
 
-csPluginInit(csPluginSysMon);
+csPluginInit(csPluginEvents);
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4
