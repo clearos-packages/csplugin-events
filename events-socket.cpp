@@ -505,7 +505,7 @@ void csEventsSocketClient::Connect(int timeout)
 
     if (rc != 0) throw csEventsSocketException(errno, "Socket connect");
 
-    csLog::Log(csLog::Debug, "SysMon client connected to: %s",
+    csLog::Log(csLog::Debug, "Events client connected to: %s",
         socket_path.c_str());
 }
 
@@ -528,7 +528,7 @@ csEventsSocketClient *csEventsSocketServer::Accept(void)
     if ((client_sd = accept(sd, (struct sockaddr *)&sa_client, &sa_len)) < 0)
         throw csEventsSocketException(errno, "Accepting client connection");
 
-    csLog::Log(csLog::Debug, "SysMon client connection accepted: %d", client_sd);
+    csLog::Log(csLog::Debug, "Events client connection accepted: %d", client_sd);
 
     return new csEventsSocketClient(client_sd, socket_path);
 }

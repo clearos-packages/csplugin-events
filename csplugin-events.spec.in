@@ -30,11 +30,11 @@ make %{?_smp_mflags}
 # Install
 %install
 make install DESTDIR=$RPM_BUILD_ROOT
-rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-sysmon.a
-rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-sysmon.la
+rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-events.a
+rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-events.la
 mkdir -vp ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
-cp -v csplugin-sysmon.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
-mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-sysmon
+cp -v csplugin-events.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
+mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events
 
 # Clean-up
 %clean
@@ -70,8 +70,8 @@ mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-sysmon
 # Files
 %files
 %defattr(-,root,root)
-%config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-sysmon.conf
-%{_libdir}/libcsplugin-sysmon.so*
-%attr(750,clearsync,clearsync) %{_localstatedir}/lib/csplugin-sysmon
-%{_bindir}/sysmonctl
+%config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-events.conf
+%{_libdir}/libcsplugin-events.so*
+%attr(750,clearsync,clearsync) %{_localstatedir}/lib/csplugin-events
+%{_bindir}/eventsctl
 

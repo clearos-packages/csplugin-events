@@ -42,7 +42,7 @@ static char *conf_filename = NULL;
 
 static void usage(int rc = 0, bool version = false)
 {
-    csLog::Log(csLog::Info, "SysMon Control v%s", PACKAGE_VERSION);
+    csLog::Log(csLog::Info, "Events Control v%s", PACKAGE_VERSION);
     csLog::Log(csLog::Info, "Copyright (C) 2014 ClearFoundation [%s %s]",
         __DATE__, __TIME__);
     if (version) {
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
             mode = csEventsCtl::CTLM_SEND;
             break;
         case 'p':
-            alert_flags |= csEventsAlert::csAF_FLG_PERSIST;
+//            alert_flags |= csEventsAlert::csAF_FLG_PERSIST;
             break;
         case 't':
             alert_type = optarg;
@@ -250,7 +250,7 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
     string alert_type_name, alert_prio;
 
     if (mode == CTLM_SEND || mode == CTLM_MARK_AS_READ || mode == CTLM_LIST_ALERTS) {
-        events_socket = new csEventsSocketClient(events_conf->GetSysMonSocketPath());
+        events_socket = new csEventsSocketClient(events_conf->GetEventsSocketPath());
         events_socket->Connect();
 
         switch (events_socket->VersionExchange()) {
@@ -333,7 +333,8 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
                 else if ((*i)->GetFlags() & csEventsAlert::csAF_LVL_WARN)
                     alert_prio = "CRITICAL";
 
-                alert_flags[0] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_PERSIST) ? 'p' : '-';
+                alert_flags[0] = '-';
+//                alert_flags[0] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_PERSIST) ? 'p' : '-';
                 alert_flags[1] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_READ) ? 'r' : '-';
                 alert_flags[2] = '\0';
 

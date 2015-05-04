@@ -22,9 +22,9 @@ define('csAF_MAX', 0xFFFFFFFF);
 
 define('csAT_NULL', 0);
 
-define('csSYSMON_PROTOVER', 0x20141112);
+define('csEVENTS_PROTOVER', 0x20141112);
 
-class libSysMonAlert
+class libEventsAlert
 {
     protected $id;
     protected $stamp;
@@ -218,12 +218,12 @@ class libSysMonAlert
     }
 }
 
-libSysMonAlert::init_field_sizes();
+libEventsAlert::init_field_sizes();
 
-class libSysMonitor
+class libEventsitor
 {
-    const PATH_SOCKET = '/tmp/sysmonctl.socket';
-    const FILE_CONFIG = '/etc/clearsync.d/csplugin-sysmon.conf';
+    const PATH_SOCKET = '/tmp/eventsctl.socket';
+    const FILE_CONFIG = '/etc/clearsync.d/csplugin-events.conf';
 
     protected $sd;
     protected $socket_path;
@@ -315,7 +315,7 @@ class libSysMonitor
                     'Unexpected op-code: ' . $this->header['opcode']
                 );
             }
-            $alert = new libSysMonAlert();
+            $alert = new libEventsAlert();
             $this->read_packet_alert($alert);
             $alerts[] = $alert;
         }
@@ -347,7 +347,7 @@ class libSysMonitor
     protected function version_exchange()
     {
         $this->reset_packet();
-        $this->write_packet_var(csSYSMON_PROTOVER, 'version');
+        $this->write_packet_var(csEVENTS_PROTOVER, 'version');
         $this->write_packet(csSMOC_VERSION);
 
         if ($this->read_result() != csSMPR_OK) {
@@ -366,8 +366,8 @@ class libSysMonitor
 
     protected function read_packet_var(&$v, $field)
     {
-        $format = libSysMonAlert::get_field_format($field);
-        $length = libSysMonAlert::get_field_length($field);
+        $format = libEventsAlert::get_field_format($field);
+        $length = libEventsAlert::get_field_length($field);
 
         $u = unpack(
             $format,
@@ -379,8 +379,8 @@ class libSysMonitor
 
     protected function read_packet_string(&$v)
     {
-        $format = libSysMonAlert::get_field_format('string');
-        $length = libSysMonAlert::get_field_length('string');
+        $format = libEventsAlert::get_field_format('string');
+        $length = libEventsAlert::get_field_length('string');
 
         $u = unpack(
             $format,
@@ -400,8 +400,8 @@ class libSysMonitor
     {
         $v->reset();
 
-        $format = libSysMonAlert::get_field_format('id');
-        $length = libSysMonAlert::get_field_length('id');
+        $format = libEventsAlert::get_field_format('id');
+        $length = libEventsAlert::get_field_length('id');
 
         $u = unpack(
             'L2',
@@ -446,8 +446,8 @@ class libSysMonitor
 
     protected function write_packet_var($v, $field)
     {
-        $format = libSysMonAlert::get_field_format($field);
-        $length = libSysMonAlert::get_field_length($field);
+        $format = libEventsAlert::get_field_format($field);
+        $length = libEventsAlert::get_field_length($field);
 
         if ($length == 8) {
             $hi =  $v & 0x00000000ffffffff;
@@ -466,8 +466,8 @@ class libSysMonitor
 
     protected function write_packet_string($v)
     {
-        $format = libSysMonAlert::get_field_format('string');
-        $length = libSysMonAlert::get_field_length('string');
+        $format = libEventsAlert::get_field_format('string');
+        $length = libEventsAlert::get_field_length('string');
 
         $this->payload .= pack($format, strlen($v));
         $this->header['payload_length'] += $length;
@@ -547,8 +547,8 @@ class libSysMonitor
         if ($this->header['opcode'] != csSMOC_RESULT)
             throw new Exception('Unexpected protocol op-code');
 
-        $format = libSysMonAlert::get_field_format('result');
-        $length = libSysMonAlert::get_field_length('result');
+        $format = libEventsAlert::get_field_format('result');
+        $length = libEventsAlert::get_field_length('result');
         if ($this->header['payload_length'] < $length)
             throw new Exception('Unexpected payload length');
 

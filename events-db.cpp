@@ -304,6 +304,7 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
     if ((rc = sqlite3_bind_int64(purge_alerts,
         index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
         throw csEventsDbException(rc, sqlite3_errstr(rc));
+/*
     // csAF_FLG_READ
     index = sqlite3_bind_parameter_index(purge_alerts, "@csAF_FLG_READ");
     if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_READ");
@@ -316,7 +317,7 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
     if ((rc = sqlite3_bind_int64(purge_alerts,
         index, static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_PERSIST))) != SQLITE_OK)
         throw csEventsDbException(rc, sqlite3_errstr(rc));
-
+*/
     do {
         rc = sqlite3_step(purge_alerts);
     }

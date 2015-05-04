@@ -88,7 +88,7 @@ void csPluginEvents::SetConfigurationFile(const string &conf_filename)
     try {
         if (events_socket_server != NULL) delete events_socket_server;
         events_socket_server = new csEventsSocketServer(
-            events_conf->GetSysMonSocketPath());
+            events_conf->GetEventsSocketPath());
     } catch (csEventsSocketException &e) {
         csLog::Log(csLog::Error,
             "%s: %s: %s", name.c_str(), e.estring.c_str(), e.what());

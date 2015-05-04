@@ -124,7 +124,7 @@ public:
 
     bool InitDb(void) { return initdb; }
     time_t GetMaxAgeTTL(void) { return max_age_ttl; }
-    const string GetSysMonSocketPath(void) const { return events_socket_path; }
+    const string GetEventsSocketPath(void) const { return events_socket_path; }
     const string GetSqliteDbFilename(void) const { return sqlite_db_filename; }
     const string GetSyslogSocketPath(void) const { return syslog_socket_path; }
     const string GetSyswatchStatePath(void) const { return syswatch_state_path; }
