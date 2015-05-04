@@ -7,9 +7,10 @@ config.log
 config.status
 config.sub
 configure
-csplugin-sysmon.spec
+csplugin-events.spec
 depcomp
 .deps/
+eventsctl
 install-sh
 *.la
 .libs/
@@ -22,4 +23,3 @@ Makefile.in
 missing
 *.o
 stamp-h1
-sysmonctl

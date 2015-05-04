@@ -1,23 +1,23 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
 
-EXTRA_DIST = csplugin-sysmon.conf csplugin-sysmon.h sysmon-alert.h \
-	sysmon-conf.h sysmon-db.h sysmon-socket.h sysmon-syslog.h \
-	sysmonctl.h
+EXTRA_DIST = csplugin-events.conf csplugin-events.h events-alert.h \
+	events-conf.h events-db.h events-socket.h events-syslog.h \
+	eventsctl.h
 
 AM_CFLAGS = ${CFLAGS}
 AM_CXXFLAGS = ${CXXFLAGS}
 
-bin_PROGRAMS = sysmonctl
+bin_PROGRAMS = eventsctl
 
-sysmonctl_SOURCES = sysmonctl.cpp
-sysmonctl_CXXFLAGS = ${AM_CXXFLAGS}
-sysmonctl_LDADD = -lclearsync -lcsplugin-sysmon
+eventsctl_SOURCES = eventsctl.cpp
+eventsctl_CXXFLAGS = ${AM_CXXFLAGS}
+eventsctl_LDADD = -lclearsync -lcsplugin-events
 
-lib_LTLIBRARIES = libcsplugin-sysmon.la
+lib_LTLIBRARIES = libcsplugin-events.la
 
-libcsplugin_sysmon_la_SOURCES = csplugin-sysmon.cpp sysmon-alert.cpp \
-				sysmon-conf.cpp sysmon-db.cpp \
-				sysmon-socket.cpp sysmon-syslog.cpp
-libcsplugin_sysmon_la_CXXFLAGS = ${AM_CXXFLAGS}
+libcsplugin_events_la_SOURCES = csplugin-events.cpp events-alert.cpp \
+				events-conf.cpp events-db.cpp \
+				events-socket.cpp events-syslog.cpp
+libcsplugin_events_la_CXXFLAGS = ${AM_CXXFLAGS}
 
