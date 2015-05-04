@@ -222,7 +222,8 @@ void *csPluginEvents::Entry(void)
             case csEVENT_TIMER:
                 timer = static_cast<csEventTimer *>(event)->GetTimer();
 
-                if (timer->GetId() == _CSPLUGIN_EVENTS_PURGE_TIMER) {
+                if (timer->GetId() == _CSPLUGIN_EVENTS_PURGE_TIMER &&
+                    events_conf->GetMaxAgeTTL()) {
                     events_db->PurgeAlerts(csEventsAlert(),
                         time(NULL) - events_conf->GetMaxAgeTTL());
                 } else if (timer->GetId() == _CSPLUGIN_EVENTS_SYSDATA_TIMER) {

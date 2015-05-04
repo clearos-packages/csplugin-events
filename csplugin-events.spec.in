@@ -1,7 +1,7 @@
 # ClearSync System Monitor Plugin RPM spec
 Name: @PACKAGE_TARNAME@
 Version: @PACKAGE_VERSION@
-Release: 3%{dist}
+Release: 5%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins
@@ -72,6 +72,6 @@ mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events
 %defattr(-,root,root)
 %config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-events.conf
 %{_libdir}/libcsplugin-events.so*
-%attr(750,clearsync,clearsync) %{_localstatedir}/lib/csplugin-events
+%attr(750,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events
 %{_bindir}/eventsctl
 

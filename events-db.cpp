@@ -267,7 +267,7 @@ void csEventsDb_sqlite::InsertAlert(const csEventsAlert &alert)
 
     do {
         rc = sqlite3_step(insert_alert);
-        csLog::Log(csLog::Debug, "%s:%d: %d", __PRETTY_FUNCTION__, __LINE__, rc);
+        csLog::Log(csLog::Debug, "%s:%d: sqlite3_step: %d", __PRETTY_FUNCTION__, __LINE__, rc);
     }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
@@ -276,7 +276,7 @@ void csEventsDb_sqlite::InsertAlert(const csEventsAlert &alert)
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
 
-    csLog::Log(csLog::Debug, "%s:%d: %d", __PRETTY_FUNCTION__, __LINE__, alert.GetId());
+    csLog::Log(csLog::Debug, "%s:%d: insert ID: %d", __PRETTY_FUNCTION__, __LINE__, alert.GetId());
 }
 
 void csEventsDb_sqlite::UpdateAlert(const csEventsAlert &alert)
