@@ -48,15 +48,18 @@ public:
         csAST_SYSWATCH,
     };
 
-    csEventsAlertSourceConfig(csEventsAlertSourceType type, uint32_t alert_type);
+    csEventsAlertSourceConfig(
+        csEventsAlertSourceType type, uint32_t alert_type, uint32_t alert_level);
     virtual ~csEventsAlertSourceConfig();
 
     csEventsAlertSourceType GetType(void) { return type; }
     uint32_t GetAlertType(void) { return alert_type; }
+    uint32_t GetAlertLevel(void) { return alert_level; }
 
 protected:
     csEventsAlertSourceType type;
     uint32_t alert_type;
+    uint32_t alert_level;
 };
 
 typedef vector<csEventsAlertSourceConfig *> csAlertSourceConfigVector;
@@ -75,7 +78,7 @@ typedef map<string,
 class csEventsAlertSourceConfig_syslog : public csEventsAlertSourceConfig
 {
 public:
-    csEventsAlertSourceConfig_syslog(uint32_t alert_type);
+    csEventsAlertSourceConfig_syslog(uint32_t alert_type, uint32_t alert_level);
     virtual ~csEventsAlertSourceConfig_syslog();
 
     void SetLocale(const string &locale) { this->locale = locale; }

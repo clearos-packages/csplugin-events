@@ -26,6 +26,7 @@ typedef map<int, string> csEventsSyslogTextSubIndexMap;
 typedef struct
 {
     uint32_t type;
+    uint32_t level;
     csRegEx *rx;
     csRegEx *rx_en;
     csAlertSourceConfig_syslog_pattern *config;

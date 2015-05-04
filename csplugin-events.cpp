@@ -119,6 +119,7 @@ void csPluginEvents::SetConfigurationFile(const string &conf_filename)
                 entry = new csEventsSyslogRegEx;
                 memset(entry, 0, sizeof(csEventsSyslogRegEx));
                 entry->type = syslog_config->GetAlertType();
+                entry->level = syslog_config->GetAlertLevel();
 
                 if (j->first == locale) {
                     entry->rx = new csRegEx(
@@ -279,6 +280,7 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
 
                     csEventsAlert alert;
                     alert.SetType((*j)->type);
+                    alert.SetFlag((*j)->level);
                     alert.SetDescription(text);
 
                     events_db->InsertAlert(alert);

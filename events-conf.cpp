@@ -21,10 +21,11 @@
 #include <clearsync/csplugin.h>
 
 #include "events-conf.h"
+#include "events-alert.h"
 
 csEventsAlertSourceConfig::csEventsAlertSourceConfig(
-    csEventsAlertSourceType type, uint32_t alert_type)
-    : type(type), alert_type(alert_type)
+    csEventsAlertSourceType type, uint32_t alert_type, uint32_t alert_level)
+    : type(type), alert_type(alert_type), alert_level(alert_level)
 {
 }
 
@@ -33,8 +34,8 @@ csEventsAlertSourceConfig::~csEventsAlertSourceConfig()
 }
 
 csEventsAlertSourceConfig_syslog::csEventsAlertSourceConfig_syslog(
-    uint32_t alert_type
-) : locale("en"), csEventsAlertSourceConfig(csAST_SYSLOG, alert_type)
+    uint32_t alert_type, uint32_t alert_level
+) : locale("en"), csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level)
 {
 }
 
@@ -104,6 +105,8 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
             ParseError("unexpected tag: " + tag->GetName());
         if (!tag->ParamExists("type"))
             ParseError("type parameter missing");
+        if (!tag->ParamExists("level"))
+            ParseError("level parameter missing");
         if (!tag->ParamExists("source"))
             ParseError("source parameter missing");
 
@@ -115,9 +118,21 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
         if (id == 0)
             ParseError("invalid type parameter");
 
+        uint32_t level = 0;
+        const char *level_param = tag->GetParamValue("level").c_str();
+
+        if (strncasecmp(level_param, "NORM", 4) == 0)
+            level = csEventsAlert::csAF_LVL_NORM;
+        else if (strncasecmp(level_param, "WARN", 4) == 0)
+            level = csEventsAlert::csAF_LVL_WARN;
+        else if (strncasecmp(level_param, "CRIT", 4) == 0)
+            level = csEventsAlert::csAF_LVL_CRIT;
+        else
+            ParseError("invalid level parameter");
+
         if (tag->GetParamValue("source") == "syslog") {
             csEventsAlertSourceConfig_syslog *syslog_config;
-            syslog_config = new csEventsAlertSourceConfig_syslog(id);
+            syslog_config = new csEventsAlertSourceConfig_syslog(id, level);
             tag->SetData(syslog_config);
         }
         else
