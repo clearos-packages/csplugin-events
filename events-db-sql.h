@@ -80,13 +80,13 @@ WHERE id = @id \
 #define _EVENTS_DB_SQLITE_SELECT_ALERT "\
 SELECT * \
 FROM alerts \
-;"
+"
 
 #define _EVENTS_DB_SQLITE_SELECT_GROUP "\
 SELECT * \
 FROM groups \
 WHERE id = @id \
-;"
+"
 
 #endif // _EVENTS_DB_SQL_H
 
