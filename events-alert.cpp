@@ -128,7 +128,7 @@ void csEventsAlert::UpdateHash(void)
     if (SHA1_Init(&ctx) != 1)
         throw csException(EINVAL, "SHA1_Init");
 
-    // Hash field...
+    // Hash alert fields...
 
     // ...type
     SHA1_Update(&ctx, (const uint8_t *)&data.type, sizeof(uint32_t));

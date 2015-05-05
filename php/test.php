@@ -17,7 +17,6 @@ $alert->set_type($events->get_type_id('USER_LOGIN'));
 $alert->set_user('dsokoloski');
 $alert->add_group('dsokoloski');
 $alert->set_uuid('0a:00:27:00:00:00');
-$alert->set_icon('firewall_incoming');
 $alert->set_description('This is an example alert description!');
 
 $events->send_alert($alert);
@@ -44,7 +43,7 @@ foreach ($alerts as $alert) {
     $alert_flags .= ($alert->get_flags() & csAF_FLG_READ) ? 'r' : '-';
 
     printf("#%-10lu%-30s%s%s%s [%s]\n",
-        $alert->get_id(), strftime('%c', $alert->get_stamp()),
+        $alert->get_id(), strftime('%c', $alert->get_updated()),
         $alert_prio, (strlen($alert_prio)) ? ': ' : ' ',
         $events->get_type_name($alert->get_type()), $alert_flags);
     echo $alert->get_description() . "\n\n";

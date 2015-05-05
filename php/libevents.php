@@ -27,7 +27,8 @@ define('csEVENTS_PROTOVER', 0x20141112);
 class libEventsAlert
 {
     protected $id;
-    protected $stamp;
+    protected $created;
+    protected $updated;
     protected $flags;
     protected $type;
     protected $user;
@@ -47,7 +48,8 @@ class libEventsAlert
     public function reset()
     {
         $this->id = 0;
-        $this->stamp = time();
+        $this->created = time();
+        $this->updated = $this->created;
         $this->flags = csAF_LVL_NORM;
         $this->type = csAT_NULL;
         $this->user = posix_getuid();
@@ -62,7 +64,8 @@ class libEventsAlert
     {
         self::$field_sizes = array(
             'id' => array('format' => 'LL', 'size' => 8),
-            'stamp' => array('format' => 'L', 'size' => 4),
+            'created' => array('format' => 'L', 'size' => 4),
+            'updated' => array('format' => 'L', 'size' => 4),
             'flags' => array('format' => 'L', 'size' => 4),
             'type' => array('format' => 'L', 'size' => 4),
             'user' => array('format' => 'L', 'size' => 4),
@@ -94,9 +97,14 @@ class libEventsAlert
         return $this->id;
     }
 
-    public function get_stamp()
+    public function get_created()
     {
-        return $this->stamp;
+        return $this->created;
+    }
+
+    public function get_updated()
+    {
+        return $this->updated;
     }
 
     public function get_flags()
@@ -144,12 +152,20 @@ class libEventsAlert
         $this->id = $id;
     }
 
-    public function set_stamp($stamp = null)
+    public function set_created($stamp = null)
     {
         if ($stamp === null)
-            $this->stamp = time();
+            $this->created = time();
         else
-            $this->stamp = $stamp;
+            $this->created = $stamp;
+    }
+
+    public function set_updated($stamp = null)
+    {
+        if ($stamp === null)
+            $this->updated = time();
+        else
+            $this->updated = $stamp;
     }
 
     public function set_flags($flags)
@@ -222,7 +238,7 @@ libEventsAlert::init_field_sizes();
 
 class libEventsitor
 {
-    const PATH_SOCKET = '/tmp/eventsctl.socket';
+    const PATH_SOCKET = '/var/lib/csplugin-events/eventsctl.socket';
     const FILE_CONFIG = '/etc/clearsync.d/csplugin-events.conf';
 
     protected $sd;
@@ -294,7 +310,7 @@ class libEventsitor
         $this->write_packet(csSMOC_ALERT_INSERT);
     }
 
-    public function get_alerts($where = 'ORDER BY stamp')
+    public function get_alerts($where = 'ORDER BY updated')
     {
         $this->reset_packet();
         $this->write_packet_string($where);
@@ -411,8 +427,11 @@ class libEventsitor
         $v->set_id($u[1] | $u[2]);
         $this->payload_index += $length;
 
-        $this->read_packet_var($u, 'stamp');
-        $v->set_stamp($u);
+        $this->read_packet_var($u, 'created');
+        $v->set_created($u);
+
+        $this->read_packet_var($u, 'updated');
+        $v->set_updated($u);
 
         $this->read_packet_var($u, 'flags');
         $v->set_flags($u);
@@ -480,7 +499,8 @@ class libEventsitor
     protected function write_packet_alert($v)
     {
         $this->write_packet_var($v->get_id(), 'id');
-        $this->write_packet_var($v->get_stamp(), 'stamp');
+        $this->write_packet_var($v->get_created(), 'created');
+        $this->write_packet_var($v->get_updated(), 'updated');
         $this->write_packet_var($v->get_flags(), 'flags');
         $this->write_packet_var($v->get_type(), 'type');
         $this->write_packet_var($v->get_user(), 'user');
