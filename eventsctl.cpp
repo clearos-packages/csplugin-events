@@ -96,7 +96,7 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Specify an optional UUID.");
         csLog::Log(csLog::Info,
-            "  -i <basename>, --basename <basename>");
+            "  -b <basename>, --basename <basename>");
         csLog::Log(csLog::Info,
             "    Specify an optional basename.");
 
