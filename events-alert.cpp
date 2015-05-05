@@ -139,35 +139,31 @@ void csEventsAlert::UpdateHash(void)
         i != data.groups.end(); i++) {
         SHA1_Update(&ctx, (const uint8_t *)&(*i), sizeof(gid_t));
     }
-#if 0
-    // TODO: Probable not what we want...
+
     // ...origin
     if (data.origin.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.origin.c_str(), data.origin.length());
     }
-#endif
-#if 0
-    // TODO: Probable not what we want...
+
     // ...basename
     if (data.basename.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.basename.c_str(), data.basename.length());
     }
-#endif
+
     // ...uuid
     if (data.uuid.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.uuid.c_str(), data.uuid.length());
     }
-#if 0
-    // TODO: Probable not what we want...
+
     // ...description
     if (data.desc.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.desc.c_str(), data.desc.length());
     }
-#endif
+
     SHA1_Final(hash, &ctx);
     ::csBinaryToHex(hash, hash_str, SHA_DIGEST_LENGTH);
 #if 0

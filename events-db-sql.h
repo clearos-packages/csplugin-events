@@ -120,7 +120,7 @@ SELECT \
     alerts.created AS created, \
     stamps.stamp AS updated, \
     alerts.flags AS flags, \
-    alerts.types AS type, \
+    alerts.type AS type, \
     alerts.user AS user, \
     alerts.origin AS origin, \
     alerts.basename AS basename, \
