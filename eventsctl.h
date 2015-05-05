@@ -25,8 +25,8 @@ public:
         CTLM_NULL,
         CTLM_SEND,
         CTLM_LIST_TYPES,
-        CTLM_MARK_AS_READ,
         CTLM_LIST_ALERTS,
+        CTLM_MARK_RESOLVED,
     };
 
     csEventsCtl();

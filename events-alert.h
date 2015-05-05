@@ -47,8 +47,8 @@ public:
         ////////////////////////////////////////
         // Alert notification has been sent.
         csAF_FLG_NOTIFIED   = 0x00000100,
-        // Alert has been read / viewed.
-        csAF_FLG_READ       = 0x00000200,
+        // Alert has been resolved.
+        csAF_FLG_RESOLVED   = 0x00000200,
 
         csAF_MAX            = 0xffffffff,
     };

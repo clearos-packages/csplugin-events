@@ -365,20 +365,20 @@ void csEventsSocket::AlertSelect(csEventsDb *db)
     }
 }
 
-void csEventsSocket::AlertMarkAsRead(csEventsAlert &alert)
+void csEventsSocket::AlertMarkAsResolved(csEventsAlert &alert)
 {
-    int64_t id;
+    uint32_t type;
 
     if (mode == csSM_CLIENT) {
-        id = alert.GetId();
+        type = alert.GetType();
 
         ResetPacket();
-        WritePacketVar((const void *)&id, sizeof(int64_t));
-        WritePacket(csSMOC_ALERT_MARK_AS_READ);
+        WritePacketVar((const void *)&type, sizeof(uint32_t));
+        WritePacket(csSMOC_ALERT_MARK_AS_RESOLVED);
     }
     else if (mode == csSM_SERVER) {
-        ReadPacketVar((void *)&id, sizeof(int64_t));
-        alert.SetId(id);
+        ReadPacketVar((void *)&type, sizeof(uint32_t));
+        alert.SetType(type);
     }
 }
 

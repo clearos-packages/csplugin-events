@@ -108,10 +108,10 @@ WHERE id = @id \
 
 //#define _EVENTS_DB_SQLITE_PURGE_ALERTS  "DELETE FROM alerts WHERE stamp < @max_age AND flags & @csAF_FLG_READ AND NOT flags & @csAF_FLG_PERSIST;"
 
-#define _EVENTS_DB_SQLITE_MARK_READ "\
+#define _EVENTS_DB_SQLITE_MARK_RESOLVED "\
 UPDATE alerts \
-SET flags = flags | @csAF_FLG_READ \
-WHERE id = @id \
+SET flags = flags | @csAF_FLG_RESOLVED \
+WHERE type = @type \
 ;"
 
 #define _EVENTS_DB_SQLITE_SELECT_ALERT "\

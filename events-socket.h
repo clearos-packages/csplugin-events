@@ -27,7 +27,7 @@ enum csEventsOpCode {
     csSMOC_VERSION,
     csSMOC_ALERT_INSERT,
     csSMOC_ALERT_SELECT,
-    csSMOC_ALERT_MARK_AS_READ,
+    csSMOC_ALERT_MARK_AS_RESOLVED,
     csSMOC_ALERT_RECORD,
 
     csSMOC_RESULT = 0xFF,
@@ -124,7 +124,7 @@ public:
     void AlertInsert(csEventsAlert &alert);
     uint32_t AlertSelect(const string &where, vector<csEventsAlert *> &result);
     void AlertSelect(csEventsDb *db);
-    void AlertMarkAsRead(csEventsAlert &alert);
+    void AlertMarkAsResolved(csEventsAlert &alert);
 
     csEventsProtoResult ReadResult(void);
     void WriteResult(csEventsProtoResult result,

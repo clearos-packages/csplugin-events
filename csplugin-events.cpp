@@ -384,9 +384,9 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
     case csSMOC_ALERT_SELECT:
         client->AlertSelect(events_db);
         break;
-    case csSMOC_ALERT_MARK_AS_READ:
-        client->AlertMarkAsRead(alert);
-        events_db->MarkAsRead(alert.GetId());
+    case csSMOC_ALERT_MARK_AS_RESOLVED:
+        client->AlertMarkAsResolved(alert);
+        events_db->MarkAsResolved(alert.GetType());
         break;
     default:
         csLog::Log(csLog::Warning,

@@ -48,7 +48,7 @@ public:
     virtual void UpdateAlert(const csEventsAlert &alert) { }
     virtual void PurgeAlerts(const csEventsAlert &alert, time_t age) { }
 
-    virtual void MarkAsRead(int64_t id) { };
+    virtual void MarkAsResolved(uint32_t type) { };
 
 protected:
     csDbType type;
@@ -73,7 +73,7 @@ public:
     void UpdateAlert(const csEventsAlert &alert);
     void PurgeAlerts(const csEventsAlert &alert, time_t age);
 
-    void MarkAsRead(int64_t id);
+    void MarkAsResolved(uint32_t type);
 
 protected:
     void Exec(int (*callback)(void *, int, char **, char **), void *param = NULL);
@@ -85,7 +85,7 @@ protected:
     sqlite3_stmt *insert_stamp;
     sqlite3_stmt *purge_stamps;
     sqlite3_stmt *last_id;
-    sqlite3_stmt *mark_read;
+    sqlite3_stmt *mark_resolved;
     sqlite3_stmt *select_by_hash;
 
     string db_filename;

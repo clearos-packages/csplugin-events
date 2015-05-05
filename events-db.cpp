@@ -106,7 +106,7 @@ csEventsDb_sqlite::csEventsDb_sqlite(const string &db_filename)
     : csEventsDb(csDBT_SQLITE), handle(NULL),
     insert_alert(NULL), update_alert(NULL), purge_alerts(NULL),
     insert_stamp(NULL), purge_stamps(NULL),
-    last_id(NULL), mark_read(NULL), select_by_hash(NULL), db_filename(db_filename)
+    last_id(NULL), mark_resolved(NULL), select_by_hash(NULL), db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
 
@@ -143,8 +143,8 @@ void csEventsDb_sqlite::Close(void)
         sqlite3_finalize(purge_stamps);
     if (last_id != NULL)
         sqlite3_finalize(last_id);
-    if (mark_read != NULL)
-        sqlite3_finalize(mark_read);
+    if (mark_resolved != NULL)
+        sqlite3_finalize(mark_resolved);
     if (select_by_hash != NULL)
         sqlite3_finalize(select_by_hash);
 }
@@ -571,36 +571,36 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
     }
 }
 
-void csEventsDb_sqlite::MarkAsRead(int64_t id)
+void csEventsDb_sqlite::MarkAsResolved(uint32_t type)
 {
     int rc, index = 0;
 
-    if (mark_read == NULL) {
+    if (mark_resolved == NULL) {
         rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_MARK_READ,
-            strlen(_EVENTS_DB_SQLITE_MARK_READ) + 1,
-            &mark_read, NULL);
+            _EVENTS_DB_SQLITE_MARK_RESOLVED,
+            strlen(_EVENTS_DB_SQLITE_MARK_RESOLVED) + 1,
+            &mark_resolved, NULL);
         if (rc != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
-    else sqlite3_reset(mark_read);
+    else sqlite3_reset(mark_resolved);
 
-    // csAF_FLG_READ
-    index = sqlite3_bind_parameter_index(mark_read, "@csAF_FLG_READ");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_READ");
-    if ((rc = sqlite3_bind_int64(mark_read, index,
-        static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_READ))) != SQLITE_OK)
+    // csAF_FLG_RESOLVED
+    index = sqlite3_bind_parameter_index(mark_resolved, "@csAF_FLG_RESOLVED");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_RESOLVED");
+    if ((rc = sqlite3_bind_int64(mark_resolved, index,
+        static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_RESOLVED))) != SQLITE_OK)
         throw csEventsDbException(rc, sqlite3_errstr(rc));
 
-    // ID
-    index = sqlite3_bind_parameter_index(mark_read, "@id");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
-    if ((rc = sqlite3_bind_int64(mark_read,
-        index, static_cast<sqlite3_int64>(id))) != SQLITE_OK)
+    // Type
+    index = sqlite3_bind_parameter_index(mark_resolved, "@type");
+    if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+    if ((rc = sqlite3_bind_int64(mark_resolved,
+        index, static_cast<sqlite3_int64>(type))) != SQLITE_OK)
         throw csEventsDbException(rc, sqlite3_errstr(rc));
 
     do {
-        rc = sqlite3_step(mark_read);
+        rc = sqlite3_step(mark_resolved);
     }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 

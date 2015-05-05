@@ -100,9 +100,11 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Specify an optional basename.");
 
-        csLog::Log(csLog::Info, "\nMark alert as read:");
+        csLog::Log(csLog::Info, "\nMark alert type as resolved:");
         csLog::Log(csLog::Info,
-            "  -m <id>, --mark-read <id>");
+            "  -r, --mark-resolved");
+        csLog::Log(csLog::Info,
+            "  -t <type>, --type <type>");
 
         csLog::Log(csLog::Info, "\nList all alerts:");
         csLog::Log(csLog::Info,
@@ -130,14 +132,13 @@ int main(int argc, char *argv[])
         { "help", 0, 0, 'h' },
         // Send an alert
         { "send", 0, 0, 's' },
-        { "persistent", 0, 0, 'p' },
         { "type", 1, 0, 't' },
         { "user", 1, 0, 'u' },
         { "origin", 1, 0, 'o' },
         { "basename", 1, 0, 'b' },
         { "uuid", 1, 0, 'U' },
-        // Mark alert as read
-        { "mark-read", 1, 0, 'm' },
+        // Mark resolved
+        { "mark-resolved", 0, 0, 'r' },
         // List alerts
         { "list", 0, 0, 'l' },
 
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?spt:u:U:b:o:m:l", options, &o)) == -1) break;
+            "Vc:dh?st:u:U:b:o:rl", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);
@@ -175,9 +176,6 @@ int main(int argc, char *argv[])
             if (mode != csEventsCtl::CTLM_NULL) usage(1);
             mode = csEventsCtl::CTLM_SEND;
             break;
-        case 'p':
-//            alert_flags |= csEventsAlert::csAF_FLG_PERSIST;
-            break;
         case 't':
             alert_type = optarg;
             break;
@@ -193,9 +191,8 @@ int main(int argc, char *argv[])
         case 'o':
             alert_origin = optarg;
             break;
-        case 'm':
-            mode = csEventsCtl::CTLM_MARK_AS_READ;
-            alert_id = (int64_t)atoll(optarg);
+        case 'r':
+            mode = csEventsCtl::CTLM_MARK_RESOLVED;
             break;
         case 'l':
             mode = csEventsCtl::CTLM_LIST_ALERTS;
@@ -212,9 +209,19 @@ int main(int argc, char *argv[])
         if (argc > optind) alert_desc << argv[optind];
         for (int i = optind + 1; i < argc; i++) alert_desc << " " << argv[i];
     }
+    else if (mode == csEventsCtl::CTLM_MARK_RESOLVED) {
+        if (alert_type.length() == 0) {
+            csLog::Log(csLog::Error, "Alert type to mark as resolved is required.");
+            exit(1);
+        }
+    }
 
-    rc = events_ctl.Exec(mode, alert_id,
-        alert_flags, alert_type, alert_user, alert_origin, alert_basename, alert_uuid, alert_desc);
+    rc = events_ctl.Exec(
+        mode,
+        alert_id, alert_flags, alert_type,
+        alert_user, alert_origin, alert_basename,
+        alert_uuid, alert_desc
+    );
 
     free(conf_filename);
 
@@ -238,12 +245,11 @@ csEventsCtl::~csEventsCtl()
 }
 
 int csEventsCtl::Exec(csEventsCtlMode mode,
-        int64_t id, uint32_t flags, const string &type,
-        const string &user, const string &origin, const string &basename, const string &uuid,
+        int64_t id, uint32_t flags, const string &type, const string &user,
+        const string &origin, const string &basename, const string &uuid,
         ostringstream &desc)
 {
     csEventsAlert alert;
-//    uint32_t alert_type = 0;
     csAlertIdMap alert_types;
     vector<csEventsAlert *> result;
     char alert_flags[3];
@@ -251,7 +257,7 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
     char date_time[_CS_MAX_TIMESTAMP];
     string alert_type_name, alert_prio;
 
-    if (mode == CTLM_SEND || mode == CTLM_MARK_AS_READ || mode == CTLM_LIST_ALERTS) {
+    if (mode == CTLM_SEND || mode == CTLM_MARK_RESOLVED || mode == CTLM_LIST_ALERTS) {
         events_socket = new csEventsSocketClient(events_conf->GetEventsSocketPath());
         events_socket->Connect();
 
@@ -284,10 +290,10 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
 
             break;
 
-        case CTLM_MARK_AS_READ:
-            alert.SetId(id);
+        case CTLM_MARK_RESOLVED:
+            alert.SetType(events_conf->GetAlertId(type));
 
-            events_socket->AlertMarkAsRead(alert);
+            events_socket->AlertMarkAsResolved(alert);
 
             break;
 
@@ -336,8 +342,10 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
                     alert_prio = "CRITICAL";
 
                 alert_flags[0] = '-';
-//                alert_flags[0] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_PERSIST) ? 'p' : '-';
-                alert_flags[1] = ((*i)->GetFlags() & csEventsAlert::csAF_FLG_READ) ? 'r' : '-';
+                alert_flags[0] = ((*i)->GetFlags() &
+                    csEventsAlert::csAF_FLG_NOTIFIED) ? 'n' : '-';
+                alert_flags[1] = ((*i)->GetFlags() &
+                    csEventsAlert::csAF_FLG_RESOLVED) ? 'r' : '-';
                 alert_flags[2] = '\0';
 
                 csLog::Log(csLog::Info, "#%-10llu%-30s%s%s[%s] %s",
