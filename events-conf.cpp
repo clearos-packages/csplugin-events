@@ -135,7 +135,7 @@ void csEventsConf::Reload(void)
                 int status = atoi(value);
             }
             if (strncasecmp(key, "autopurge", strlen("autopurge")) == 0)
-                max_age_ttl = (time_t)atoi(value) * (time_t)3600;
+                max_age_ttl = (time_t)atoi(value) * (time_t)86400;
         }
         close(extern_config_fd);
     }
