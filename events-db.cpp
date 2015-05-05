@@ -496,10 +496,10 @@ void csEventsDb_sqlite::UpdateAlert(const csEventsAlert &alert)
 void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
 {
     int rc, index = 0;
-
+#if 0
     csLog::Log(csLog::Debug, "%s: age: %ld (%ld)", __PRETTY_FUNCTION__, age,
         age - time(NULL));
-
+#endif
     if (purge_alerts == NULL) {
         rc = sqlite3_prepare_v2(handle,
             _EVENTS_DB_SQLITE_PURGE_ALERTS,

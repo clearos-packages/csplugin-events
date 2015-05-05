@@ -307,7 +307,7 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
             for (vector<csEventsAlert *>::iterator i = result.begin();
                 i != result.end(); i++) {
 
-                const time_t stamp = (*i)->GetCreated();
+                const time_t stamp = (*i)->GetUpdated();
                 if (localtime_r(&stamp, &tm_local) == NULL) {
                     csLog::Log(csLog::Error, "Error creating local time: %s",
                         strerror(errno));
