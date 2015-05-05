@@ -121,6 +121,9 @@ void csEventsConf::Reload(void)
             p = token;
             key = strtok_r(p, "=", &sp2_ctx);
             if (key == NULL) continue;
+            for (p = value; *p == ' '; p++);
+            value = p;
+            if (key[0] == '#' || key[0] == ';') continue;
 
             p = NULL;
             value = strtok_r(p, "=", &sp2_ctx);

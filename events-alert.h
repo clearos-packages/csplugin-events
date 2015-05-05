@@ -22,7 +22,8 @@ class csEventsAlert
 public:
     typedef struct {
         int64_t id;
-        time_t stamp;
+        time_t created;
+        time_t updated;
         uint32_t flags;
         uint32_t type;
         uid_t user;
@@ -67,7 +68,8 @@ public:
         { return (const csEventsAlertData *)&data; }
 
     int64_t GetId(void) const { return data.id; }
-    time_t GetStamp(void) const { return data.stamp; }
+    time_t GetCreated(void) const { return data.created; }
+    time_t GetUpdated(void) const { return data.updated; }
     uint32_t GetFlags(void) const { return data.flags; }
     uint32_t GetType(void) const { return data.type; }
     uid_t GetUser(void) const { return data.user; }
@@ -88,8 +90,10 @@ public:
     void SetData(const csEventsAlertData &data);
 
     void SetId(int64_t id) { data.id = id; };
-    void SetStamp(void) { data.stamp = time(NULL); };
-    void SetStamp(time_t stamp) { data.stamp = stamp; };
+    void SetCreated(void) { data.created = time(NULL); };
+    void SetCreated(time_t created) { data.created = created; };
+    void SetUpdated(void) { data.updated = time(NULL); };
+    void SetUpdated(time_t updated) { data.updated = updated; };
     void SetFlags(uint32_t flags) { data.flags = flags; };
     void SetFlag(uint32_t flag) { data.flags |= flag; };
     void ClearFlag(uint32_t flag) { data.flags &= ~flag; };

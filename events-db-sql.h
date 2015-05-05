@@ -17,10 +17,17 @@
 #ifndef _EVENTS_DB_SQL_H
 #define _EVENTS_DB_SQL_H
 
-#define _EVENTS_DB_SQLITE_CREATE_ALERT "\
+#define _EVENTS_DB_SQLITE_PRAGMA_FOREIGN_KEY "\
+PRAGMA \
+    foreign_keys = ON \
+;"
+
+#define _EVENTS_DB_SQLITE_CREATE_ALERTS "\
 CREATE TABLE IF NOT EXISTS alerts( \
     id INTEGER PRIMARY KEY AUTOINCREMENT, \
-    stamp INTEGER NOT NULL, \
+    hash TEXT NOT NULL, \
+    created INTEGER NOT NULL, \
+    updated INTEGER NOT NULL, \
     flags INTEGER NOT NULL, \
     type INTEGER NOT NULL, \
     user INTEGER, \
@@ -30,10 +37,18 @@ CREATE TABLE IF NOT EXISTS alerts( \
     desc TEXT NOT NULL \
 );"
 
-#define _EVENTS_DB_SQLITE_CREATE_GROUP "\
+#define _EVENTS_DB_SQLITE_CREATE_GROUPS "\
 CREATE TABLE IF NOT EXISTS groups( \
     id INTEGER NOT NULL, \
-    gid INTEGER NOT NULL \
+    gid INTEGER NOT NULL, \
+    FOREIGN KEY (id) REFERENCES alerts(id) ON DELETE CASCADE \
+);"
+
+#define _EVENTS_DB_SQLITE_CREATE_STAMPS "\
+CREATE TABLE IF NOT EXISTS stamps( \
+    id INTEGER NOT NULL, \
+    stamp INTEGER NOT NULL, \
+    FOREIGN KEY (id) REFERENCES alerts(id) ON DELETE CASCADE \
 );"
 
 #define _EVENTS_DB_SQLITE_SELECT_LAST_ID "\
@@ -44,7 +59,9 @@ WHERE name = @table_name \
 
 #define _EVENTS_DB_SQLITE_INSERT_ALERT "\
 INSERT INTO alerts ( \
-    stamp, \
+    created, \
+    updated, \
+    hash, \
     flags, \
     type, \
     user, \
@@ -53,8 +70,10 @@ INSERT INTO alerts ( \
     uuid, \
     desc \
 ) \
-VALUES( \
-    @stamp, \
+VALUES ( \
+    @created, \
+    @updated, \
+    @hash, \
     @flags, \
     @type, \
     @user, \
@@ -64,9 +83,27 @@ VALUES( \
     @desc \
 );"
 
+#define _EVENTS_DB_SQLITE_INSERT_STAMP "\
+INSERT INTO stamps \
+VALUES ( \
+    @id, \
+    @stamp \
+);"
+
 #define _EVENTS_DB_SQLITE_PURGE_ALERTS "\
 DELETE FROM alerts \
+WHERE updated < @max_age \
+;"
+
+#define _EVENTS_DB_SQLITE_PURGE_STAMPS "\
+DELETE FROM stamps \
 WHERE stamp < @max_age \
+;"
+
+#define _EVENTS_DB_SQLITE_UPDATE_ALERT "\
+UPDATE alerts \
+SET updated = @stamp \
+WHERE id = @id \
 ;"
 
 //#define _EVENTS_DB_SQLITE_PURGE_ALERTS  "DELETE FROM alerts WHERE stamp < @max_age AND flags & @csAF_FLG_READ AND NOT flags & @csAF_FLG_PERSIST;"
@@ -78,9 +115,27 @@ WHERE id = @id \
 ;"
 
 #define _EVENTS_DB_SQLITE_SELECT_ALERT "\
-SELECT * \
-FROM alerts \
+SELECT \
+    alerts.id AS id, \
+    alerts.created AS created, \
+    stamps.stamp AS updated, \
+    alerts.flags AS flags, \
+    alerts.types AS type, \
+    alerts.user AS user, \
+    alerts.origin AS origin, \
+    alerts.basename AS basename, \
+    alerts.uuid AS uuid, \
+    alerts.desc AS desc \
+FROM alerts, stamps \
+WHERE stamps.id = alerts.id \
 "
+
+#define _EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH "\
+SELECT \
+    id \
+FROM alerts \
+WHERE hash = @hash \
+;"
 
 #define _EVENTS_DB_SQLITE_SELECT_GROUP "\
 SELECT * \

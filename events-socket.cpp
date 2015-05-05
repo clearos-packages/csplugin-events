@@ -156,7 +156,9 @@ void csEventsSocket::ReadPacketVar(csEventsAlert &alert)
     ReadPacketVar((void *)&data.id, sizeof(int64_t));
     uint32_t stamp;
     ReadPacketVar((void *)&stamp, sizeof(uint32_t));
-    data.stamp = (time_t)stamp;
+    data.created = (time_t)stamp;
+    ReadPacketVar((void *)&stamp, sizeof(uint32_t));
+    data.updated = (time_t)stamp;
     ReadPacketVar((void *)&data.flags, sizeof(uint32_t));
     ReadPacketVar((void *)&data.type, sizeof(uint32_t));
     ReadPacketVar((void *)&data.user, sizeof(uint32_t));
@@ -211,7 +213,9 @@ void csEventsSocket::WritePacketVar(const csEventsAlert &alert)
     const csEventsAlert::csEventsAlertData *data = alert.GetDataPtr();
 
     WritePacketVar((const void *)&data->id, sizeof(int64_t));
-    uint32_t stamp = (uint32_t)data->stamp;
+    uint32_t stamp = (uint32_t)data->created;
+    WritePacketVar((const void *)&stamp, sizeof(uint32_t));
+    stamp = (uint32_t)data->updated;
     WritePacketVar((const void *)&stamp, sizeof(uint32_t));
     WritePacketVar((const void *)&data->flags, sizeof(uint32_t));
     WritePacketVar((const void *)&data->type, sizeof(uint32_t));
@@ -296,7 +300,8 @@ void csEventsSocket::AlertInsert(csEventsAlert &alert)
     }
     else if (mode == csSM_SERVER) {
         ReadPacketVar(alert);
-        alert.SetStamp();
+        alert.SetCreated();
+        alert.SetUpdated(alert.GetCreated());
     }
 }
 

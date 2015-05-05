@@ -80,9 +80,13 @@ protected:
 
     sqlite3 *handle;
     sqlite3_stmt *insert_alert;
+    sqlite3_stmt *update_alert;
     sqlite3_stmt *purge_alerts;
+    sqlite3_stmt *insert_stamp;
+    sqlite3_stmt *purge_stamps;
     sqlite3_stmt *last_id;
     sqlite3_stmt *mark_read;
+    sqlite3_stmt *select_by_hash;
 
     string db_filename;
     ostringstream sql;

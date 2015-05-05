@@ -28,7 +28,8 @@
 csEventsAlert::csEventsAlert()
 {
     Reset();
-    SetStamp();
+    SetCreated();
+    SetUpdated(GetCreated());
 }
 
 csEventsAlert::csEventsAlert(
@@ -36,7 +37,8 @@ csEventsAlert::csEventsAlert(
     const string &basename, const string &uuid, const string &desc)
 {
     Reset();
-    SetStamp();
+    SetCreated();
+    SetUpdated(GetCreated());
 
     data.id = id;
     data.flags = flags;
@@ -54,7 +56,8 @@ csEventsAlert::~csEventsAlert()
 void csEventsAlert::Reset(void)
 {
     data.id = 0;
-    data.stamp = 0;
+    data.created = 0;
+    data.updated = 0;
     data.flags = csAF_LVL_NORM;
     data.type = csAT_NULL;
     data.user = 0;
@@ -90,7 +93,8 @@ void csEventsAlert::GetGroups(vector<gid_t> &groups)
 void csEventsAlert::SetData(const csEventsAlertData &data)
 {
     SetId(data.id);
-    SetStamp(data.stamp);
+    SetCreated(data.created);
+    SetUpdated(data.updated);
     SetFlags(data.flags);
     SetType(data.type);
     SetUser(data.user);
@@ -135,27 +139,35 @@ void csEventsAlert::UpdateHash(void)
         i != data.groups.end(); i++) {
         SHA1_Update(&ctx, (const uint8_t *)&(*i), sizeof(gid_t));
     }
+#if 0
+    // TODO: Probable not what we want...
     // ...origin
     if (data.origin.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.origin.c_str(), data.origin.length());
     }
+#endif
+#if 0
+    // TODO: Probable not what we want...
     // ...basename
     if (data.basename.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.basename.c_str(), data.basename.length());
     }
+#endif
     // ...uuid
     if (data.uuid.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.uuid.c_str(), data.uuid.length());
     }
+#if 0
+    // TODO: Probable not what we want...
     // ...description
     if (data.desc.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.desc.c_str(), data.desc.length());
     }
-
+#endif
     SHA1_Final(hash, &ctx);
     ::csBinaryToHex(hash, hash_str, SHA_DIGEST_LENGTH);
 #if 0
