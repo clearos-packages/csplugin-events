@@ -27,6 +27,7 @@ typedef struct
 {
     uint32_t type;
     uint32_t level;
+    bool exclude;
     csRegEx *rx;
     csRegEx *rx_en;
     csAlertSourceConfig_syslog_pattern *config;

@@ -89,9 +89,13 @@ public:
 
     csAlertSourceMap_syslog_pattern *GetPatterns(void) { return &patterns; }
 
+    void Exclude(bool exclude = false) { this->exclude = exclude; };
+    bool IsExcluded(void) { return exclude; };
+
 protected:
     string locale;
     csAlertSourceMap_syslog_pattern patterns;
+    bool exclude;
 };
 
 class csEventsConf;

@@ -41,7 +41,8 @@ csEventsAlertSourceConfig::~csEventsAlertSourceConfig()
 
 csEventsAlertSourceConfig_syslog::csEventsAlertSourceConfig_syslog(
     uint32_t alert_type, uint32_t alert_level
-) : locale("en"), csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level)
+) : locale("en"), exclude(false),
+    csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level)
 {
 }
 
@@ -180,7 +181,11 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
         if (tag->GetParamValue("source") == "syslog") {
             csEventsAlertSourceConfig_syslog *syslog_config;
             syslog_config = new csEventsAlertSourceConfig_syslog(id, level);
+            if (tag->ParamExists("exclude") &&
+                tag->GetParamValue("exclude") == "true")
+                syslog_config->Exclude(true);
             tag->SetData(syslog_config);
+
         }
         else
             ParseError("invalid source parameter");

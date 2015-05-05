@@ -122,6 +122,7 @@ void csPluginEvents::SetConfigurationFile(const string &conf_filename)
                 memset(entry, 0, sizeof(csEventsSyslogRegEx));
                 entry->type = syslog_config->GetAlertType();
                 entry->level = syslog_config->GetAlertLevel();
+                entry->exclude = syslog_config->IsExcluded();
 
                 if (j->first == locale) {
                     entry->rx = new csRegEx(
@@ -272,6 +273,7 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
                     }
                     if (rx == NULL) continue;
                     if (rx->Execute((*i).c_str()) != 0) continue;
+                    if ((*j)->exclude) continue;
 
                     string text;
                     SyslogTextSubstitute(text, rx, rx_config);
