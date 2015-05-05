@@ -27,6 +27,8 @@
 #include <linux/un.h>
 #include <sqlite3.h>
 
+#include <openssl/sha.h>
+
 #include "events-conf.h"
 #include "events-alert.h"
 #include "events-db.h"

@@ -21,6 +21,7 @@
 #include <clearsync/csplugin.h>
 
 #include <pwd.h>
+#include <openssl/sha.h>
 
 #include "events-alert.h"
 
@@ -114,6 +115,52 @@ void csEventsAlert::SetUser(const string &user)
             throw csException(ENOENT, "User not found");
     }
     data.user = pwent->pw_uid;
+}
+
+void csEventsAlert::UpdateHash(void)
+{
+    SHA_CTX ctx;
+
+    if (SHA1_Init(&ctx) != 1)
+        throw csException(EINVAL, "SHA1_Init");
+
+    // Hash field...
+
+    // ...type
+    SHA1_Update(&ctx, (const uint8_t *)&data.type, sizeof(uint32_t));
+    // ...user
+    SHA1_Update(&ctx, (const uint8_t *)&data.user, sizeof(uid_t));
+    // ...groups
+    for (vector<gid_t>::const_iterator i = data.groups.begin();
+        i != data.groups.end(); i++) {
+        SHA1_Update(&ctx, (const uint8_t *)&(*i), sizeof(gid_t));
+    }
+    // ...origin
+    if (data.origin.length() > 0) {
+        SHA1_Update(&ctx,
+            (const uint8_t *)data.origin.c_str(), data.origin.length());
+    }
+    // ...basename
+    if (data.basename.length() > 0) {
+        SHA1_Update(&ctx,
+            (const uint8_t *)data.basename.c_str(), data.basename.length());
+    }
+    // ...uuid
+    if (data.uuid.length() > 0) {
+        SHA1_Update(&ctx,
+            (const uint8_t *)data.uuid.c_str(), data.uuid.length());
+    }
+    // ...description
+    if (data.desc.length() > 0) {
+        SHA1_Update(&ctx,
+            (const uint8_t *)data.desc.c_str(), data.desc.length());
+    }
+
+    SHA1_Final(hash, &ctx);
+    ::csBinaryToHex(hash, hash_str, SHA_DIGEST_LENGTH);
+#if 0
+    csLog::Log(csLog::Debug, "Alert hash: %s", hash_str.c_str());
+#endif
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

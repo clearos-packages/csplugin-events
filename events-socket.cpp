@@ -18,16 +18,17 @@
 #include "config.h"
 #endif
 
+#include <clearsync/csplugin.h>
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <linux/un.h>
 
-#include <clearsync/csplugin.h>
-
 #include <sstream>
 
 #include <sqlite3.h>
+#include <openssl/sha.h>
 
 #include "events-alert.h"
 #include "events-db.h"

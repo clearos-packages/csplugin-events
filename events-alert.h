@@ -103,8 +103,16 @@ public:
     void SetUUID(const string &uuid) { data.uuid = uuid; };
     void SetDescription(const string &desc) { data.desc = desc; };
 
+    void UpdateHash(void);
+    string GetHash(void) { return hash_str; };
+    const uint8_t *GetHashBin(void) { return hash; };
+    const char *GetHashChar(void) { return hash_str.c_str(); };
+    int GetHashLength(void) { return static_cast<int>(hash_str.length()); };
+
 protected:
     csEventsAlertData data;
+    uint8_t hash[SHA_DIGEST_LENGTH];
+    string hash_str;
 };
 
 #endif // _EVENTS_ALERT_H

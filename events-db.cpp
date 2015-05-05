@@ -25,6 +25,8 @@
 #include <string.h>
 #include <sqlite3.h>
 
+#include <openssl/sha.h>
+
 #include "events-alert.h"
 #include "events-db.h"
 
@@ -201,9 +203,11 @@ uint32_t csEventsDb_sqlite::SelectAlert(const string &where, vector<csEventsAler
     return (uint32_t)result->size();
 }
 
-void csEventsDb_sqlite::InsertAlert(const csEventsAlert &alert)
+void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
 {
     int rc, index = 0;
+
+    alert.UpdateHash();
 
     if (insert_alert == NULL) {
         rc = sqlite3_prepare_v2(handle,

@@ -52,7 +52,7 @@ public:
     virtual int64_t GetLastId(const string &table) { return 0; }
 
     virtual uint32_t SelectAlert(const string &where, vector<csEventsAlert *> *result) { return 0; }
-    virtual void InsertAlert(const csEventsAlert &alert) { }
+    virtual void InsertAlert(csEventsAlert &alert) { }
     virtual void UpdateAlert(const csEventsAlert &alert) { }
     virtual void PurgeAlerts(const csEventsAlert &alert, time_t age) { }
 
@@ -77,7 +77,7 @@ public:
     virtual int64_t GetLastId(const string &table);
 
     uint32_t SelectAlert(const string &where, vector<csEventsAlert *> *result);
-    void InsertAlert(const csEventsAlert &alert);
+    void InsertAlert(csEventsAlert &alert);
     void UpdateAlert(const csEventsAlert &alert);
     void PurgeAlerts(const csEventsAlert &alert, time_t age);
 

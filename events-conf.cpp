@@ -18,11 +18,13 @@
 #include "config.h"
 #endif
 
+#include <clearsync/csplugin.h>
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 
-#include <clearsync/csplugin.h>
+#include <openssl/sha.h>
 
 #include "events-conf.h"
 #include "events-alert.h"
