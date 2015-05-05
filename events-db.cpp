@@ -22,6 +22,7 @@
 
 #include <sstream>
 
+#include <unistd.h>
 #include <string.h>
 #include <sqlite3.h>
 
@@ -202,7 +203,7 @@ int64_t csEventsDb_sqlite::GetLastId(const string &table)
 
     do {
         rc = sqlite3_step(last_id);
-        csLog::Log(csLog::Debug, "%s:%d: %d", __PRETTY_FUNCTION__, __LINE__, rc);
+        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
         if (rc == SQLITE_ROW) {
             id = static_cast<int64_t>(sqlite3_column_int64(last_id, 0));
             break;
@@ -263,6 +264,7 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
     int64_t hash_id = -1;
     do {
         rc = sqlite3_step(select_by_hash);
+        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
         if (rc == SQLITE_ROW) {
             hash_id = static_cast<int64_t>(sqlite3_column_int64(select_by_hash, 0));
             break;
@@ -384,8 +386,10 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
 
-        do
+        do {
             rc = sqlite3_step(insert_alert);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
         while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
         if (rc == SQLITE_ERROR) {
@@ -430,8 +434,10 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
 
-        do
+        do {
             rc = sqlite3_step(update_alert);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
         while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
         if (rc == SQLITE_ERROR) {
@@ -476,8 +482,10 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
 
-    do
+    do {
         rc = sqlite3_step(insert_stamp);
+        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+    }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
     if (rc == SQLITE_ERROR) {
@@ -551,6 +559,7 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
     // Run purge alerts
     do {
         rc = sqlite3_step(purge_alerts);
+        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
     }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
@@ -562,6 +571,7 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
     // Run purge stamps
     do {
         rc = sqlite3_step(purge_stamps);
+        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
     }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
@@ -601,6 +611,7 @@ void csEventsDb_sqlite::MarkAsResolved(uint32_t type)
 
     do {
         rc = sqlite3_step(mark_resolved);
+        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
     }
     while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
