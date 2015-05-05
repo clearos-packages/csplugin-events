@@ -2,8 +2,8 @@ AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
 
 EXTRA_DIST = csplugin-events.conf csplugin-events.h events-alert.h \
-	events-conf.h events-db.h events-socket.h events-syslog.h \
-	eventsctl.h
+	events-conf.h events-db.h events-db-sql.h events-socket.h \
+	events-syslog.h eventsctl.h
 
 AM_CFLAGS = ${CFLAGS}
 AM_CXXFLAGS = ${CXXFLAGS}
