@@ -102,7 +102,7 @@ WHERE stamp < @max_age \
 
 #define _EVENTS_DB_SQLITE_UPDATE_ALERT "\
 UPDATE alerts \
-SET updated = @stamp \
+SET updated = @stamp, flags = 0 \
 WHERE id = @id \
 ;"
 
