@@ -273,7 +273,7 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
                     }
                     if (rx == NULL) continue;
                     if (rx->Execute((*i).c_str()) != 0) continue;
-                    if ((*j)->exclude) continue;
+                    if ((*j)->exclude) break;
 
                     string text;
                     SyslogTextSubstitute(text, rx, rx_config);
