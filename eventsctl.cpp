@@ -96,9 +96,17 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Specify an optional UUID.");
         csLog::Log(csLog::Info,
+            "  -o <origin>, --origin <origin>");
+        csLog::Log(csLog::Info,
+            "    Specify an optional origin.");
+        csLog::Log(csLog::Info,
             "  -b <basename>, --basename <basename>");
         csLog::Log(csLog::Info,
             "    Specify an optional basename.");
+        csLog::Log(csLog::Info,
+            "  -a, --auto-resolve");
+        csLog::Log(csLog::Info,
+            "    Alert will auto-resolve (ex: firewall panic mode).");
 
         csLog::Log(csLog::Info, "\nMark alert type as resolved:");
         csLog::Log(csLog::Info,
@@ -137,6 +145,7 @@ int main(int argc, char *argv[])
         { "origin", 1, 0, 'o' },
         { "basename", 1, 0, 'b' },
         { "uuid", 1, 0, 'U' },
+        { "auto-resolve", 0, 0, 'a' },
         // Mark resolved
         { "mark-resolved", 0, 0, 'r' },
         // List alerts
@@ -190,6 +199,9 @@ int main(int argc, char *argv[])
             break;
         case 'o':
             alert_origin = optarg;
+            break;
+        case 'a':
+            alert_flags |= csEventsAlert::csAF_FLG_AUTO_RESOLVE;
             break;
         case 'r':
             mode = csEventsCtl::CTLM_MARK_RESOLVED;
@@ -252,7 +264,7 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
     csEventsAlert alert;
     csAlertIdMap alert_types;
     vector<csEventsAlert *> result;
-    char alert_flags[3];
+    char alert_flags[4];
     struct tm tm_local;
     char date_time[_CS_MAX_TIMESTAMP];
     string alert_type_name, alert_prio;
@@ -341,12 +353,13 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
                 else if ((*i)->GetFlags() & csEventsAlert::csAF_LVL_WARN)
                     alert_prio = "CRITICAL";
 
-                alert_flags[0] = '-';
                 alert_flags[0] = ((*i)->GetFlags() &
                     csEventsAlert::csAF_FLG_NOTIFIED) ? 'n' : '-';
                 alert_flags[1] = ((*i)->GetFlags() &
                     csEventsAlert::csAF_FLG_RESOLVED) ? 'r' : '-';
-                alert_flags[2] = '\0';
+                alert_flags[2] = ((*i)->GetFlags() &
+                    csEventsAlert::csAF_FLG_AUTO_RESOLVE) ? 'a' : '-';
+                alert_flags[3] = '\0';
 
                 csLog::Log(csLog::Info, "#%-10llu%-30s%s%s[%s] %s",
                     (*i)->GetId(), date_time, alert_prio.c_str(),

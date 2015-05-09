@@ -39,18 +39,20 @@ public:
 
         // Priority levels
         ////////////////////////////////////////
-        csAF_LVL_NORM       = 0x00000001,
-        csAF_LVL_WARN       = 0x00000002,
-        csAF_LVL_CRIT       = 0x00000004,
+        csAF_LVL_NORM           = 0x00000001,
+        csAF_LVL_WARN           = 0x00000002,
+        csAF_LVL_CRIT           = 0x00000004,
 
         // Flags
         ////////////////////////////////////////
         // Alert notification has been sent.
-        csAF_FLG_NOTIFIED   = 0x00000100,
+        csAF_FLG_NOTIFIED       = 0x00000100,
         // Alert has been resolved.
-        csAF_FLG_RESOLVED   = 0x00000200,
+        csAF_FLG_RESOLVED       = 0x00000200,
+        // Alert will resolve itself (closed-loop).
+        csAF_FLG_AUTO_RESOLVE   = 0x00000400,
 
-        csAF_MAX            = 0xffffffff,
+        csAF_MAX                = 0xffffffff,
     };
 
     enum csAlertType {
