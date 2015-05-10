@@ -126,6 +126,87 @@ void csEventsDb_sqlite::Open(void)
     sql.str("");
     sql << _EVENTS_DB_SQLITE_PRAGMA_FOREIGN_KEY;
     Exec(csEventsDb_sqlite_exec);
+
+    // Prepare statements
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_SELECT_LAST_ID,
+        strlen(_EVENTS_DB_SQLITE_SELECT_LAST_ID) + 1,
+        &last_id, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "last_id", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH,
+        strlen(_EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH) + 1,
+        &select_by_hash, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "select_by_hash", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_INSERT_ALERT,
+        strlen(_EVENTS_DB_SQLITE_INSERT_ALERT) + 1,
+        &insert_alert, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "insert_alert", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_UPDATE_ALERT,
+        strlen(_EVENTS_DB_SQLITE_UPDATE_ALERT) + 1,
+        &update_alert, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "update_alert", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_INSERT_STAMP,
+        strlen(_EVENTS_DB_SQLITE_INSERT_STAMP) + 1,
+        &insert_stamp, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "insert_stamp", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_PURGE_ALERTS,
+        strlen(_EVENTS_DB_SQLITE_PURGE_ALERTS) + 1,
+        &purge_alerts, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "purge_alerts", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_PURGE_STAMPS,
+        strlen(_EVENTS_DB_SQLITE_PURGE_STAMPS) + 1,
+        &purge_stamps, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "purge_stamps", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_MARK_RESOLVED,
+        strlen(_EVENTS_DB_SQLITE_MARK_RESOLVED) + 1,
+        &mark_resolved, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "mark_resolved", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
 }
 
 void csEventsDb_sqlite::Close(void)
@@ -184,40 +265,38 @@ int64_t csEventsDb_sqlite::GetLastId(const string &table)
     int64_t id = 0;
     int rc, index = 0;
 
-    if (last_id == NULL) {
-        rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_SELECT_LAST_ID,
-            strlen(_EVENTS_DB_SQLITE_SELECT_LAST_ID) + 1,
-            &last_id, NULL);
-        if (rc != SQLITE_OK)
+    try {
+        // Table name
+        index = sqlite3_bind_parameter_index(last_id, "@table_name");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: table_name");
+        if ((rc = sqlite3_bind_text(last_id, index,
+            table.c_str(), table.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
-    }
-    else sqlite3_reset(last_id);
 
-    // Table name
-    index = sqlite3_bind_parameter_index(last_id, "@table_name");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: table_name");
-    if ((rc = sqlite3_bind_text(last_id, index,
-        table.c_str(), table.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-
-    do {
-        rc = sqlite3_step(last_id);
-        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
-        if (rc == SQLITE_ROW) {
-            id = static_cast<int64_t>(sqlite3_column_int64(last_id, 0));
-            break;
+        do {
+            rc = sqlite3_step(last_id);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            if (rc == SQLITE_ROW) {
+                id = static_cast<int64_t>(sqlite3_column_int64(last_id, 0));
+                break;
+            }
         }
-    }
-    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
 
-    if (rc == SQLITE_ERROR) {
-        rc = sqlite3_errcode(handle);
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-    }
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
 
-    csLog::Log(csLog::Debug, "%s:%d: %p: %d",
-        __PRETTY_FUNCTION__, __LINE__, handle, id);
+        csLog::Log(csLog::Debug, "%s:%d: %p: %d",
+            __PRETTY_FUNCTION__, __LINE__, handle, id);
+
+        sqlite3_reset(last_id);
+    }
+    catch (csException &e) {
+        sqlite3_reset(last_id);
+        throw;
+    }
 
     return id;
 }
@@ -235,207 +314,228 @@ uint32_t csEventsDb_sqlite::SelectAlert(const string &where, vector<csEventsAler
 void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
 {
     int rc, index = 0;
+    int64_t hash_id = -1;
 
     alert.UpdateHash();
 
-    if (select_by_hash == NULL) {
-        rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH,
-            strlen(_EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH) + 1,
-            &select_by_hash, NULL);
-        if (rc != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+    try {
+        // Hash
+        index = sqlite3_bind_parameter_index(select_by_hash, "@hash");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: hash");
+        if ((rc = sqlite3_bind_text(select_by_hash, index,
+            alert.GetHashChar(), alert.GetHashLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "select_by_hash", "hash", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        do {
+            rc = sqlite3_step(select_by_hash);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            if (rc == SQLITE_ROW) {
+                hash_id = static_cast<int64_t>(sqlite3_column_int64(select_by_hash, 0));
+                break;
+            }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
                 __PRETTY_FUNCTION__, "select_by_hash", sqlite3_errstr(rc));
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
-    }
-    else sqlite3_reset(select_by_hash);
 
-    // Hash
-    index = sqlite3_bind_parameter_index(select_by_hash, "@hash");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: hash");
-    if ((rc = sqlite3_bind_text(select_by_hash, index,
-        alert.GetHashChar(), alert.GetHashLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
-        csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-            __PRETTY_FUNCTION__, "select_by_hash", "hash", sqlite3_errstr(rc));
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
+        sqlite3_reset(select_by_hash);
     }
-
-    int64_t hash_id = -1;
-    do {
-        rc = sqlite3_step(select_by_hash);
-        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
-        if (rc == SQLITE_ROW) {
-            hash_id = static_cast<int64_t>(sqlite3_column_int64(select_by_hash, 0));
-            break;
-        }
-    }
-    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
-
-    if (rc == SQLITE_ERROR) {
-        rc = sqlite3_errcode(handle);
-        csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
-            __PRETTY_FUNCTION__, "select_by_hash", sqlite3_errstr(rc));
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    catch (csException &e) {
+        sqlite3_reset(select_by_hash);
+        throw;
     }
 
     if (hash_id < 0) {
-        if (insert_alert == NULL) {
-            rc = sqlite3_prepare_v2(handle,
-                _EVENTS_DB_SQLITE_INSERT_ALERT,
-                strlen(_EVENTS_DB_SQLITE_INSERT_ALERT) + 1,
-                &insert_alert, NULL);
-            if (rc != SQLITE_OK) {
-                csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+        try {
+            // Created
+            index = sqlite3_bind_parameter_index(insert_alert, "@created");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: created");
+            if ((rc = sqlite3_bind_int64(insert_alert,
+                index, static_cast<sqlite3_int64>(alert.GetCreated()))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "hash", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Updated
+            time_t updated = alert.GetCreated();
+            index = sqlite3_bind_parameter_index(insert_alert, "@updated");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: updated");
+            if ((rc = sqlite3_bind_int64(insert_alert,
+                index, static_cast<sqlite3_int64>(updated))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "updated", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Hash
+            index = sqlite3_bind_parameter_index(insert_alert, "@hash");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: hash");
+            if ((rc = sqlite3_bind_text(insert_alert, index,
+                alert.GetHashChar(), alert.GetHashLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "hash", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Flags
+            index = sqlite3_bind_parameter_index(insert_alert, "@flags");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: flags");
+            if ((rc = sqlite3_bind_int64(insert_alert,
+                index, static_cast<sqlite3_int64>(alert.GetFlags()))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "flags", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Type
+            index = sqlite3_bind_parameter_index(insert_alert, "@type");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+            if ((rc = sqlite3_bind_int64(insert_alert,
+                index, static_cast<sqlite3_int64>(alert.GetType()))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "type", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // User
+            index = sqlite3_bind_parameter_index(insert_alert, "@user");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: user");
+            if ((rc = sqlite3_bind_int64(insert_alert,
+                index, static_cast<sqlite3_int64>(alert.GetUser()))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "user", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Origin
+            index = sqlite3_bind_parameter_index(insert_alert, "@origin");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: origin");
+            if ((rc = sqlite3_bind_text(insert_alert, index,
+                alert.GetOriginChar(), alert.GetOriginLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "origin", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Basename
+            index = sqlite3_bind_parameter_index(insert_alert, "@basename");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: basename");
+            if ((rc = sqlite3_bind_text(insert_alert, index,
+                alert.GetBasenameChar(), alert.GetBasenameLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "basename", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // UUID
+            index = sqlite3_bind_parameter_index(insert_alert, "@uuid");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: uuid");
+            if ((rc = sqlite3_bind_text(insert_alert, index,
+                alert.GetUUIDChar(), alert.GetUUIDLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "uuid", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Description
+            index = sqlite3_bind_parameter_index(insert_alert, "@desc");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: desc");
+            if ((rc = sqlite3_bind_text(insert_alert, index,
+                alert.GetDescriptionChar(), alert.GetDescriptionLength(),
+                SQLITE_TRANSIENT)) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "insert_alert", "desc", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+
+            do {
+                rc = sqlite3_step(insert_alert);
+                if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            }
+            while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+            if (rc == SQLITE_ERROR) {
+                rc = sqlite3_errcode(handle);
+                csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
                     __PRETTY_FUNCTION__, "insert_alert", sqlite3_errstr(rc));
                 throw csEventsDbException(rc, sqlite3_errstr(rc));
             }
-        }
-        else sqlite3_reset(insert_alert);
 
-        // Created
-        index = sqlite3_bind_parameter_index(insert_alert, "@created");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: created");
-        if ((rc = sqlite3_bind_int64(insert_alert,
-            index, static_cast<sqlite3_int64>(alert.GetCreated()))) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "hash", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Updated
-        time_t updated = alert.GetCreated();
-        index = sqlite3_bind_parameter_index(insert_alert, "@updated");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: updated");
-        if ((rc = sqlite3_bind_int64(insert_alert,
-            index, static_cast<sqlite3_int64>(updated))) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "updated", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Hash
-        index = sqlite3_bind_parameter_index(insert_alert, "@hash");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: hash");
-        if ((rc = sqlite3_bind_text(insert_alert, index,
-            alert.GetHashChar(), alert.GetHashLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "hash", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Flags
-        index = sqlite3_bind_parameter_index(insert_alert, "@flags");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: flags");
-        if ((rc = sqlite3_bind_int64(insert_alert,
-            index, static_cast<sqlite3_int64>(alert.GetFlags()))) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "flags", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Type
-        index = sqlite3_bind_parameter_index(insert_alert, "@type");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
-        if ((rc = sqlite3_bind_int64(insert_alert,
-            index, static_cast<sqlite3_int64>(alert.GetType()))) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "type", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // User
-        index = sqlite3_bind_parameter_index(insert_alert, "@user");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: user");
-        if ((rc = sqlite3_bind_int64(insert_alert,
-            index, static_cast<sqlite3_int64>(alert.GetUser()))) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "user", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Origin 
-        index = sqlite3_bind_parameter_index(insert_alert, "@origin");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: origin");
-        if ((rc = sqlite3_bind_text(insert_alert, index,
-            alert.GetOriginChar(), alert.GetOriginLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "origin", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Basename
-        index = sqlite3_bind_parameter_index(insert_alert, "@basename");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: basename");
-        if ((rc = sqlite3_bind_text(insert_alert, index,
-            alert.GetBasenameChar(), alert.GetBasenameLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "basename", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // UUID
-        index = sqlite3_bind_parameter_index(insert_alert, "@uuid");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: uuid");
-        if ((rc = sqlite3_bind_text(insert_alert, index,
-            alert.GetUUIDChar(), alert.GetUUIDLength(), SQLITE_TRANSIENT)) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "uuid", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-        // Description
-        index = sqlite3_bind_parameter_index(insert_alert, "@desc");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: desc");
-        if ((rc = sqlite3_bind_text(insert_alert, index,
-            alert.GetDescriptionChar(), alert.GetDescriptionLength(),
-            SQLITE_TRANSIENT)) != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", "desc", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
+            alert.SetId(GetLastId("alerts"));
 
-        do {
-            rc = sqlite3_step(insert_alert);
-            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            sqlite3_reset(insert_alert);
         }
-        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
-
-        if (rc == SQLITE_ERROR) {
-            rc = sqlite3_errcode(handle);
-            csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
-                __PRETTY_FUNCTION__, "insert_alert", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        catch (csException &e) {
+            sqlite3_reset(insert_alert);
+            throw;
         }
-
-        alert.SetId(GetLastId("alerts"));
     }
     else {
-        if (update_alert == NULL) {
-            rc = sqlite3_prepare_v2(handle,
-                _EVENTS_DB_SQLITE_UPDATE_ALERT,
-                strlen(_EVENTS_DB_SQLITE_UPDATE_ALERT) + 1,
-                &update_alert, NULL);
-            if (rc != SQLITE_OK) {
-                csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+        try {
+            // ID
+            index = sqlite3_bind_parameter_index(update_alert, "@id");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
+            if ((rc = sqlite3_bind_int64(update_alert,
+                index, static_cast<sqlite3_int64>(hash_id))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "update_alert", "id", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Stamp
+            index = sqlite3_bind_parameter_index(update_alert, "@stamp");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: stamp");
+            if ((rc = sqlite3_bind_int64(update_alert,
+                index, static_cast<sqlite3_int64>(time(NULL)))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "update_alert", "stamp", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+
+            do {
+                rc = sqlite3_step(update_alert);
+                if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            }
+            while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+            if (rc == SQLITE_ERROR) {
+                rc = sqlite3_errcode(handle);
+                csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
                     __PRETTY_FUNCTION__, "update_alert", sqlite3_errstr(rc));
                 throw csEventsDbException(rc, sqlite3_errstr(rc));
             }
-        }
-        else sqlite3_reset(update_alert);
 
+            alert.SetId(hash_id);
+
+            sqlite3_reset(update_alert);
+        }
+        catch (csException &e) {
+            sqlite3_reset(update_alert);
+            throw;
+        }
+    }
+
+    try {
         // ID
-        index = sqlite3_bind_parameter_index(update_alert, "@id");
+        index = sqlite3_bind_parameter_index(insert_stamp, "@id");
         if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
-        if ((rc = sqlite3_bind_int64(update_alert,
-            index, static_cast<sqlite3_int64>(hash_id))) != SQLITE_OK) {
+        if ((rc = sqlite3_bind_int64(insert_stamp,
+            index, static_cast<sqlite3_int64>(alert.GetId()))) != SQLITE_OK) {
             csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "update_alert", "id", sqlite3_errstr(rc));
+                __PRETTY_FUNCTION__, "insert_stamp", "id", sqlite3_errstr(rc));
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
         // Stamp
-        index = sqlite3_bind_parameter_index(update_alert, "@stamp");
+        index = sqlite3_bind_parameter_index(insert_stamp, "@stamp");
         if (index == 0) throw csException(EINVAL, "SQL parameter missing: stamp");
-        if ((rc = sqlite3_bind_int64(update_alert,
-            index, static_cast<sqlite3_int64>(time(NULL)))) != SQLITE_OK) {
+        if ((rc = sqlite3_bind_int64(insert_stamp,
+            index, static_cast<sqlite3_int64>(alert.GetUpdated()))) != SQLITE_OK) {
             csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "update_alert", "stamp", sqlite3_errstr(rc));
+                __PRETTY_FUNCTION__, "insert_stamp", "stamp", sqlite3_errstr(rc));
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
 
         do {
-            rc = sqlite3_step(update_alert);
+            rc = sqlite3_step(insert_stamp);
             if (rc == SQLITE_BUSY) { usleep(5000); continue; }
         }
         while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
@@ -443,56 +543,15 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
         if (rc == SQLITE_ERROR) {
             rc = sqlite3_errcode(handle);
             csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
-                __PRETTY_FUNCTION__, "update_alert", sqlite3_errstr(rc));
-            throw csEventsDbException(rc, sqlite3_errstr(rc));
-        }
-
-        alert.SetId(hash_id);
-    }
-
-    if (insert_stamp == NULL) {
-        rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_INSERT_STAMP,
-            strlen(_EVENTS_DB_SQLITE_INSERT_STAMP) + 1,
-            &insert_stamp, NULL);
-        if (rc != SQLITE_OK) {
-            csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
                 __PRETTY_FUNCTION__, "insert_stamp", sqlite3_errstr(rc));
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
-    }
-    else sqlite3_reset(insert_stamp);
 
-    // ID
-    index = sqlite3_bind_parameter_index(insert_stamp, "@id");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
-    if ((rc = sqlite3_bind_int64(insert_stamp,
-        index, static_cast<sqlite3_int64>(alert.GetId()))) != SQLITE_OK) {
-        csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-            __PRETTY_FUNCTION__, "insert_stamp", "id", sqlite3_errstr(rc));
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
+        sqlite3_reset(insert_stamp);
     }
-    // Stamp
-    index = sqlite3_bind_parameter_index(insert_stamp, "@stamp");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: stamp");
-    if ((rc = sqlite3_bind_int64(insert_stamp,
-        index, static_cast<sqlite3_int64>(alert.GetUpdated()))) != SQLITE_OK) {
-        csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-            __PRETTY_FUNCTION__, "insert_stamp", "stamp", sqlite3_errstr(rc));
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-    }
-
-    do {
-        rc = sqlite3_step(insert_stamp);
-        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
-    }
-    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
-
-    if (rc == SQLITE_ERROR) {
-        rc = sqlite3_errcode(handle);
-        csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
-            __PRETTY_FUNCTION__, "insert_stamp", sqlite3_errstr(rc));
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    catch (csException &e) {
+        sqlite3_reset(insert_stamp);
+        throw;
     }
 }
 
@@ -504,80 +563,53 @@ void csEventsDb_sqlite::UpdateAlert(const csEventsAlert &alert)
 void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
 {
     int rc, index = 0;
-#if 0
-    csLog::Log(csLog::Debug, "%s: age: %ld (%ld)", __PRETTY_FUNCTION__, age,
-        age - time(NULL));
-#endif
-    if (purge_alerts == NULL) {
-        rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_PURGE_ALERTS,
-            strlen(_EVENTS_DB_SQLITE_PURGE_ALERTS) + 1,
-            &purge_alerts, NULL);
-        if (rc != SQLITE_OK)
+
+    try {
+        // Max age (alerts)
+        index = sqlite3_bind_parameter_index(purge_alerts, "@max_age");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: max_age");
+        if ((rc = sqlite3_bind_int64(purge_alerts,
+            index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
-    }
-    else sqlite3_reset(purge_alerts);
 
-    if (purge_stamps == NULL) {
-        rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_PURGE_STAMPS,
-            strlen(_EVENTS_DB_SQLITE_PURGE_STAMPS) + 1,
-            &purge_stamps, NULL);
-        if (rc != SQLITE_OK)
+        // Max age (stamps)
+        index = sqlite3_bind_parameter_index(purge_stamps, "@max_age");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: max_age");
+        if ((rc = sqlite3_bind_int64(purge_stamps,
+            index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        // Run purge alerts
+        do {
+            rc = sqlite3_step(purge_alerts);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        // Run purge stamps
+        do {
+            rc = sqlite3_step(purge_stamps);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(purge_alerts);
+        sqlite3_reset(purge_stamps);
     }
-    else sqlite3_reset(purge_stamps);
-
-    // Max age (alerts)
-    index = sqlite3_bind_parameter_index(purge_alerts, "@max_age");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: max_age");
-    if ((rc = sqlite3_bind_int64(purge_alerts,
-        index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-
-    // Max age (stamps)
-    index = sqlite3_bind_parameter_index(purge_stamps, "@max_age");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: max_age");
-    if ((rc = sqlite3_bind_int64(purge_stamps,
-        index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-#if 0
-    // csAF_FLG_READ
-    index = sqlite3_bind_parameter_index(purge_alerts, "@csAF_FLG_READ");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_READ");
-    if ((rc = sqlite3_bind_int64(purge_alerts, index,
-        static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_READ))) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-    // csAF_FLG_PERSIST
-    index = sqlite3_bind_parameter_index(purge_alerts, "@csAF_FLG_PERSIST");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_PERSIST");
-    if ((rc = sqlite3_bind_int64(purge_alerts,
-        index, static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_PERSIST))) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-#endif
-
-    // Run purge alerts
-    do {
-        rc = sqlite3_step(purge_alerts);
-        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
-    }
-    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
-
-    if (rc == SQLITE_ERROR) {
-        rc = sqlite3_errcode(handle);
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-    }
-
-    // Run purge stamps
-    do {
-        rc = sqlite3_step(purge_stamps);
-        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
-    }
-    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
-
-    if (rc == SQLITE_ERROR) {
-        rc = sqlite3_errcode(handle);
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    catch (csException &e) {
+        sqlite3_reset(purge_alerts);
+        sqlite3_reset(purge_stamps);
+        throw;
     }
 }
 
@@ -585,39 +617,37 @@ void csEventsDb_sqlite::MarkAsResolved(uint32_t type)
 {
     int rc, index = 0;
 
-    if (mark_resolved == NULL) {
-        rc = sqlite3_prepare_v2(handle,
-            _EVENTS_DB_SQLITE_MARK_RESOLVED,
-            strlen(_EVENTS_DB_SQLITE_MARK_RESOLVED) + 1,
-            &mark_resolved, NULL);
-        if (rc != SQLITE_OK)
+    try {
+        // csAF_FLG_RESOLVED
+        index = sqlite3_bind_parameter_index(mark_resolved, "@csAF_FLG_RESOLVED");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_RESOLVED");
+        if ((rc = sqlite3_bind_int64(mark_resolved, index,
+            static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_RESOLVED))) != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        // Type
+        index = sqlite3_bind_parameter_index(mark_resolved, "@type");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+        if ((rc = sqlite3_bind_int64(mark_resolved,
+            index, static_cast<sqlite3_int64>(type))) != SQLITE_OK)
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        do {
+            rc = sqlite3_step(mark_resolved);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(mark_resolved);
     }
-    else sqlite3_reset(mark_resolved);
-
-    // csAF_FLG_RESOLVED
-    index = sqlite3_bind_parameter_index(mark_resolved, "@csAF_FLG_RESOLVED");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_RESOLVED");
-    if ((rc = sqlite3_bind_int64(mark_resolved, index,
-        static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_RESOLVED))) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-
-    // Type
-    index = sqlite3_bind_parameter_index(mark_resolved, "@type");
-    if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
-    if ((rc = sqlite3_bind_int64(mark_resolved,
-        index, static_cast<sqlite3_int64>(type))) != SQLITE_OK)
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-
-    do {
-        rc = sqlite3_step(mark_resolved);
-        if (rc == SQLITE_BUSY) { usleep(5000); continue; }
-    }
-    while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
-
-    if (rc == SQLITE_ERROR) {
-        rc = sqlite3_errcode(handle);
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    catch (csException &e) {
+        sqlite3_reset(mark_resolved);
+        throw;
     }
 }
 
