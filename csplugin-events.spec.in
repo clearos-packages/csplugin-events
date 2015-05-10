@@ -12,6 +12,7 @@ Requires: clearsync >= 1.8
 BuildRequires: clearsync-devel >= 2.0
 BuildRequires: expat-devel
 BuildRequires: sqlite-devel
+BuildRequires: openssl-devel
 Summary: ClearSync System Monitor plugin
 Requires(pre): /sbin/ldconfig
 
