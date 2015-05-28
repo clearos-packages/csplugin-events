@@ -120,7 +120,7 @@ public:
     csEventsConf(csPluginEvents *parent,
         const char *filename, csPluginXmlParser *parser)
         : csConf(filename, parser), parent(parent),
-        initdb(false), max_age_ttl(0),
+        initdb(false), max_age_ttl(0), enable_status(true),
         events_socket_path(_EVENTS_CONF_EVENTS_SOCKET),
         sqlite_db_filename(_EVENTS_CONF_SQLITE_DB),
         syslog_socket_path(_EVENTS_CONF_SYSLOG_SOCKET),
@@ -131,6 +131,7 @@ public:
 
     bool InitDb(void) { return initdb; }
     time_t GetMaxAgeTTL(void) { return max_age_ttl; }
+    bool IsEnabled(void) { return enable_status; }
     const string GetExternConfig(void) const { return extern_config; }
     const string GetAlertConfig(void) const { return alert_config; }
     const string GetEventsSocketPath(void) const { return events_socket_path; }
@@ -149,6 +150,7 @@ protected:
 
     bool initdb;
     time_t max_age_ttl;
+    bool enable_status;
     string extern_config;
     string alert_config;
     string events_socket_path;

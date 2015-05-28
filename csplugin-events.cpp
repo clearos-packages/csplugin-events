@@ -260,6 +260,8 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
 
             events_syslog->Read(syslog_messages);
 
+            if (!events_conf->IsEnabled()) syslog_messages.clear();
+
             for (vector<string>::iterator i = syslog_messages.begin();
                 i != syslog_messages.end(); i++) {
                 for (csEventsSyslogRegExVector::iterator j = events_syslog_rx.begin();

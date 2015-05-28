@@ -131,11 +131,10 @@ void csEventsConf::Reload(void)
             if (value == NULL) continue;
             for (p = value; *p == ' '; p++);
             value = p;
-/*
+
             if (strncasecmp(key, "status", strlen("status")) == 0) {
-                int status = atoi(value);
+                enable_status = (atoi(value)) ? true : false;
             }
-*/
             if (strncasecmp(key, "autopurge", strlen("autopurge")) == 0)
                 max_age_ttl = (time_t)atoi(value) * (time_t)86400;
         }
