@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sqlite3.h>
+#include <sys/stat.h>
 
 #include <openssl/sha.h>
 
@@ -127,6 +128,60 @@ void csEventsDb_sqlite::Open(void)
     sql << _EVENTS_DB_SQLITE_PRAGMA_FOREIGN_KEY;
     Exec(csEventsDb_sqlite_exec);
 
+    // Set ownership and permissions
+    uid_t uid = ::csGetUserId(_EVENTS_DB_SQLITE_USER);
+    gid_t gid = ::csGetGroupId(_EVENTS_DB_SQLITE_GROUP);
+    if ((rc = chown(db_filename.c_str(), uid, gid)) < 0) {
+        csLog::Log(csLog::Debug, "%s: chown(%s): %s",
+            __PRETTY_FUNCTION__, db_filename.c_str(), strerror(errno));
+        throw csEventsDbException(rc, strerror(rc));
+    }
+    if ((rc = chmod(db_filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) < 0) {
+        csLog::Log(csLog::Debug, "%s: chmod(%s): %s",
+            __PRETTY_FUNCTION__, db_filename.c_str(), strerror(errno));
+        throw csEventsDbException(rc, strerror(rc));
+    }
+}
+
+void csEventsDb_sqlite::Close(void)
+{
+    if (handle != NULL)
+        sqlite3_close(handle);
+    if (insert_alert != NULL)
+        sqlite3_finalize(insert_alert);
+    if (update_alert != NULL)
+        sqlite3_finalize(update_alert);
+    if (purge_alerts != NULL)
+        sqlite3_finalize(purge_alerts);
+    if (insert_stamp != NULL)
+        sqlite3_finalize(insert_stamp);
+    if (purge_stamps != NULL)
+        sqlite3_finalize(purge_stamps);
+    if (last_id != NULL)
+        sqlite3_finalize(last_id);
+    if (mark_resolved != NULL)
+        sqlite3_finalize(mark_resolved);
+    if (select_by_hash != NULL)
+        sqlite3_finalize(select_by_hash);
+}
+
+void csEventsDb_sqlite::Create(void)
+{
+    int rc;
+
+    // Create alerts
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_CREATE_ALERTS;
+    Exec(csEventsDb_sqlite_exec);
+    // Create stamps
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_CREATE_STAMPS;
+    Exec(csEventsDb_sqlite_exec);
+    // Create groups
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_CREATE_GROUPS;
+    Exec(csEventsDb_sqlite_exec);
+
     // Prepare statements
     rc = sqlite3_prepare_v2(handle,
         _EVENTS_DB_SQLITE_SELECT_LAST_ID,
@@ -169,22 +224,22 @@ void csEventsDb_sqlite::Open(void)
     }
 
     rc = sqlite3_prepare_v2(handle,
-        _EVENTS_DB_SQLITE_INSERT_STAMP,
-        strlen(_EVENTS_DB_SQLITE_INSERT_STAMP) + 1,
-        &insert_stamp, NULL);
-    if (rc != SQLITE_OK) {
-        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
-            __PRETTY_FUNCTION__, "insert_stamp", sqlite3_errstr(rc));
-        throw csEventsDbException(rc, sqlite3_errstr(rc));
-    }
-
-    rc = sqlite3_prepare_v2(handle,
         _EVENTS_DB_SQLITE_PURGE_ALERTS,
         strlen(_EVENTS_DB_SQLITE_PURGE_ALERTS) + 1,
         &purge_alerts, NULL);
     if (rc != SQLITE_OK) {
         csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
             __PRETTY_FUNCTION__, "purge_alerts", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_INSERT_STAMP,
+        strlen(_EVENTS_DB_SQLITE_INSERT_STAMP) + 1,
+        &insert_stamp, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "insert_stamp", sqlite3_errstr(rc));
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
 
@@ -207,44 +262,6 @@ void csEventsDb_sqlite::Open(void)
             __PRETTY_FUNCTION__, "mark_resolved", sqlite3_errstr(rc));
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
-}
-
-void csEventsDb_sqlite::Close(void)
-{
-    if (handle != NULL)
-        sqlite3_close(handle);
-    if (insert_alert != NULL)
-        sqlite3_finalize(insert_alert);
-    if (update_alert != NULL)
-        sqlite3_finalize(update_alert);
-    if (purge_alerts != NULL)
-        sqlite3_finalize(purge_alerts);
-    if (insert_stamp != NULL)
-        sqlite3_finalize(insert_stamp);
-    if (purge_stamps != NULL)
-        sqlite3_finalize(purge_stamps);
-    if (last_id != NULL)
-        sqlite3_finalize(last_id);
-    if (mark_resolved != NULL)
-        sqlite3_finalize(mark_resolved);
-    if (select_by_hash != NULL)
-        sqlite3_finalize(select_by_hash);
-}
-
-void csEventsDb_sqlite::Create(void)
-{
-    // Create alerts
-    sql.str("");
-    sql << _EVENTS_DB_SQLITE_CREATE_ALERTS;
-    Exec(csEventsDb_sqlite_exec);
-    // Create stamps
-    sql.str("");
-    sql << _EVENTS_DB_SQLITE_CREATE_STAMPS;
-    Exec(csEventsDb_sqlite_exec);
-    // Create groups
-    sql.str("");
-    sql << _EVENTS_DB_SQLITE_CREATE_GROUPS;
-    Exec(csEventsDb_sqlite_exec);
 }
 
 void csEventsDb_sqlite::Drop(void)
@@ -516,12 +533,12 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
 
     try {
         // ID
-        index = sqlite3_bind_parameter_index(insert_stamp, "@id");
-        if (index == 0) throw csException(EINVAL, "SQL parameter missing: id");
+        index = sqlite3_bind_parameter_index(insert_stamp, "@aid");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: aid");
         if ((rc = sqlite3_bind_int64(insert_stamp,
             index, static_cast<sqlite3_int64>(alert.GetId()))) != SQLITE_OK) {
             csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
-                __PRETTY_FUNCTION__, "insert_stamp", "id", sqlite3_errstr(rc));
+                __PRETTY_FUNCTION__, "insert_stamp", "aid", sqlite3_errstr(rc));
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
         // Stamp

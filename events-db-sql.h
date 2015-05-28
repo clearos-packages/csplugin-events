@@ -85,9 +85,12 @@ VALUES ( \
 );"
 
 #define _EVENTS_DB_SQLITE_INSERT_STAMP "\
-INSERT INTO stamps \
+INSERT INTO stamps ( \
+    aid, \
+    stamp \
+) \
 VALUES ( \
-    @id, \
+    @aid, \
     @stamp \
 );"
 
@@ -128,7 +131,7 @@ SELECT \
     alerts.uuid AS uuid, \
     alerts.desc AS desc \
 FROM alerts, stamps \
-WHERE stamps.id = alerts.id \
+WHERE stamps.aid = alerts.id \
 "
 
 #define _EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH "\

@@ -19,6 +19,9 @@
 
 #include "events-db-sql.h"
 
+#define _EVENTS_DB_SQLITE_USER      "clearsync"
+#define _EVENTS_DB_SQLITE_GROUP     "webconfig"
+
 class csEventsDbException : public csException
 {
 public:

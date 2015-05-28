@@ -1,7 +1,7 @@
 # ClearSync System Monitor Plugin RPM spec
 Name: @PACKAGE_TARNAME@
 Version: @PACKAGE_VERSION@
-Release: 9%{dist}
+Release: 11%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins
@@ -14,7 +14,7 @@ BuildRequires: expat-devel
 BuildRequires: sqlite-devel
 BuildRequires: openssl-devel
 Summary: ClearSync System Monitor plugin
-Requires(pre): /sbin/ldconfig
+Requires(pre): /sbin/ldconfig, /usr/sbin/groupmems
 
 %description
 This is an System Monitor ClearSync plugin.
@@ -41,6 +41,10 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 # Clean-up
 %clean
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
+
+# Pre install
+%pre
+/usr/sbin/groupmems -g webconfig -a clearsync 2> /dev/null
 
 # Post install
 %post
@@ -74,7 +78,7 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 %defattr(-,root,root)
 %config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-events.conf
 %{_libdir}/libcsplugin-events.so*
-%attr(750,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events
+%attr(770,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events
 %attr(660,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/events.db
 %{_bindir}/eventsctl
 
