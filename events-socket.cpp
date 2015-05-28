@@ -424,7 +424,7 @@ ssize_t csEventsSocket::Read(uint8_t *data, ssize_t length, time_t timeout)
 {
     struct timeval tv, tv_active;
     uint8_t *ptr = data;
-    ssize_t bytes_read, bytes_left = length;
+    ssize_t bytes_read = 0, bytes_left = length;
 
     gettimeofday(&tv_active, NULL);
 
@@ -457,8 +457,7 @@ ssize_t csEventsSocket::Write(const uint8_t *data, ssize_t length, time_t timeou
 {
     struct timeval tv, tv_active;
     const uint8_t *ptr = data;
-    ssize_t bytes_wrote;
-    ssize_t bytes_left = length;
+    ssize_t bytes_wrote = 0, bytes_left = length;
 
     gettimeofday(&tv_active, NULL);
 

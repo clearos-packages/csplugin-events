@@ -94,8 +94,8 @@ public:
 
 protected:
     string locale;
-    csAlertSourceMap_syslog_pattern patterns;
     bool exclude;
+    csAlertSourceMap_syslog_pattern patterns;
 };
 
 class csEventsConf;

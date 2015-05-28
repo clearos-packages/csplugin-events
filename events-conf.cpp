@@ -41,8 +41,8 @@ csEventsAlertSourceConfig::~csEventsAlertSourceConfig()
 
 csEventsAlertSourceConfig_syslog::csEventsAlertSourceConfig_syslog(
     uint32_t alert_type, uint32_t alert_level
-) : locale("en"), exclude(false),
-    csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level)
+) : csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level),
+    locale("en"), exclude(false)
 {
 }
 
@@ -131,10 +131,11 @@ void csEventsConf::Reload(void)
             if (value == NULL) continue;
             for (p = value; *p == ' '; p++);
             value = p;
-
+/*
             if (strncasecmp(key, "status", strlen("status")) == 0) {
                 int status = atoi(value);
             }
+*/
             if (strncasecmp(key, "autopurge", strlen("autopurge")) == 0)
                 max_age_ttl = (time_t)atoi(value) * (time_t)86400;
         }
