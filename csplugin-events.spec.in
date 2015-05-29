@@ -1,5 +1,5 @@
 # ClearSync System Monitor Plugin RPM spec
-%{!?_with_pic: %{!?_without_ssl: %define _with_pic --with-pic=inih}}
+%{!?_with_pic: %{!?_without_pic: %define _with_pic --with-pic=inih}}
 
 Name: @PACKAGE_TARNAME@
 Version: @PACKAGE_VERSION@
