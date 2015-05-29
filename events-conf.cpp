@@ -29,6 +29,8 @@
 #include "events-conf.h"
 #include "events-alert.h"
 
+#include "inih/cpp/INIReader.h"
+
 csEventsAlertSourceConfig::csEventsAlertSourceConfig(
     csEventsAlertSourceType type, uint32_t alert_type, uint32_t alert_level)
     : type(type), alert_type(alert_type), alert_level(alert_level)
@@ -104,6 +106,16 @@ void csEventsConf::Reload(void)
     // XXX: Configuration must be ::csGetPageSize() bytes or smaller (usually 4k).
     struct stat extern_config_stat;
     if (stat(extern_config.c_str(), &extern_config_stat)  == 0) {
+        INIReader reader(extern_config.c_str());
+
+        if (reader.ParseError() < 0)
+            throw csException(errno, "Error parsing external configuration");
+
+        enable_status = reader.GetBoolean("", "status", "true");
+        csLog::Log(csLog::Debug, "%s: %s = %ld", __PRETTY_FUNCTION__, "status", enable_status);
+        max_age_ttl = (time_t)reader.GetInteger("", "autopurge", 60 * 86400);
+        csLog::Log(csLog::Debug, "%s: %s = %ld", __PRETTY_FUNCTION__, "autopurge", max_age_ttl);
+#if 0
         int extern_config_fd = open(extern_config.c_str(), O_RDONLY);
         if (extern_config_fd < 0)
             throw csException(errno, "Error opening external configuration");
@@ -139,6 +151,7 @@ void csEventsConf::Reload(void)
                 max_age_ttl = (time_t)atoi(value) * (time_t)86400;
         }
         close(extern_config_fd);
+#endif
     }
 }
 

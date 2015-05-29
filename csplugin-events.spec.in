@@ -1,4 +1,6 @@
 # ClearSync System Monitor Plugin RPM spec
+%{!?_with_pic: %{!?_without_ssl: %define _with_pic --with-pic=inih}}
+
 Name: @PACKAGE_TARNAME@
 Version: @PACKAGE_VERSION@
 Release: 12%{dist}
@@ -23,7 +25,7 @@ Report bugs to: @PACKAGE_BUGREPORT@
 # Build
 %prep
 %setup -q
-%{configure}
+%configure %{?_with_pic}
 
 %build
 make %{?_smp_mflags}
@@ -31,8 +33,8 @@ make %{?_smp_mflags}
 # Install
 %install
 make install DESTDIR=$RPM_BUILD_ROOT
-rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-events.a
-rm -f ${RPM_BUILD_ROOT}/%{_libdir}/libcsplugin-events.la
+rm -f ${RPM_BUILD_ROOT}/%{_libdir}/lib*.a
+rm -f ${RPM_BUILD_ROOT}/%{_libdir}/lib*.la
 mkdir -vp ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 cp -v csplugin-events.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events
@@ -44,7 +46,7 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 
 # Pre install
 %pre
-/usr/sbin/groupmems -g webconfig -a clearsync 2> /dev/null
+/usr/sbin/groupmems -g webconfig -a clearsync 2> /dev/null || :
 
 # Post install
 %post
@@ -78,7 +80,7 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 %defattr(-,root,root)
 %config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-events.conf
 %{_libdir}/libcsplugin-events.so*
-%attr(770,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events
+%attr(770,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/
 %attr(660,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/events.db
 %{_bindir}/eventsctl
 
