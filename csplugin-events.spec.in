@@ -39,6 +39,8 @@ mkdir -vp ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 cp -v csplugin-events.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events
 touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
+mkdir -vp ${RPM_BUILD_ROOT}/%{_sysconfdir}/rsyslog.d
+cp -v deploy/rsyslog.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/10-clearsync.conf
 
 # Clean-up
 %clean
@@ -51,7 +53,12 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 # Post install
 %post
 /sbin/ldconfig
+%if "0%{dist}" == "0.v6"
 /sbin/service clearsyncd condrestart >/dev/null 2>&1 || :
+%else
+/sbin/service clearsync condrestart >/dev/null 2>&1 || :
+%endif
+/sbin/service rsyslog condrestart >/dev/null 2>&1 || :
 
 # Add command(s) to sudo configuration
 #CHECK=`grep "^clearsync[[:space:]]*" /etc/sudoers`
@@ -73,7 +80,12 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 # Post uninstall
 %postun
 /sbin/ldconfig
+%if "0%{dist}" == "0.v6"
 /sbin/service clearsyncd condrestart >/dev/null 2>&1 || :
+%else
+/sbin/service clearsync condrestart >/dev/null 2>&1 || :
+%endif
+/sbin/service rsyslog condrestart >/dev/null 2>&1 || :
 
 # Files
 %files
@@ -83,4 +95,5 @@ touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 %attr(770,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/
 %attr(660,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/events.db
 %{_bindir}/eventsctl
+%attr(644,root,root) %{_sysconfdir}/rsyslog.d/10-clearsync.conf
 
