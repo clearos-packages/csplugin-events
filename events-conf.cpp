@@ -20,9 +20,12 @@
 
 #include <clearsync/csplugin.h>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/stat.h>
+#include <dirent.h>
 
 #include <openssl/sha.h>
 
@@ -103,7 +106,6 @@ void csEventsConf::Reload(void)
     parser->Parse();
 
     // Read and parse external (webconfig) configuration.
-    // XXX: Configuration must be ::csGetPageSize() bytes or smaller (usually 4k).
     struct stat extern_config_stat;
     if (stat(extern_config.c_str(), &extern_config_stat)  == 0) {
         INIReader reader(extern_config.c_str());
@@ -115,44 +117,62 @@ void csEventsConf::Reload(void)
         csLog::Log(csLog::Debug, "%s: %s = %ld", __PRETTY_FUNCTION__, "status", enable_status);
         max_age_ttl = (time_t)reader.GetInteger("", "autopurge", 60 * 86400);
         csLog::Log(csLog::Debug, "%s: %s = %ld", __PRETTY_FUNCTION__, "autopurge", max_age_ttl);
-#if 0
-        int extern_config_fd = open(extern_config.c_str(), O_RDONLY);
-        if (extern_config_fd < 0)
-            throw csException(errno, "Error opening external configuration");
-
-        char buffer[::csGetPageSize()];
-        char *sp1_ctx, *sp2_ctx, *p, *token, *key, *value;
-        ssize_t bytes = read(extern_config_fd, buffer, ::csGetPageSize());
-
-        if (bytes < 0)
-            throw csException(errno, "Error reading external configuration");
-
-        for (p = buffer; bytes > 0; p = NULL) {
-            token = strtok_r(p, "\n", &sp1_ctx);
-            if (token == NULL) break;
-
-            p = token;
-            key = strtok_r(p, "=", &sp2_ctx);
-            if (key == NULL) continue;
-            for (p = key; *p == ' '; p++);
-            key = p;
-            if (key[0] == '#' || key[0] == ';') continue;
-
-            p = NULL;
-            value = strtok_r(p, "=", &sp2_ctx);
-            if (value == NULL) continue;
-            for (p = value; *p == ' '; p++);
-            value = p;
-
-            if (strncasecmp(key, "status", strlen("status")) == 0) {
-                enable_status = (atoi(value)) ? true : false;
-            }
-            if (strncasecmp(key, "autopurge", strlen("autopurge")) == 0)
-                max_age_ttl = (time_t)atoi(value) * (time_t)86400;
-        }
-        close(extern_config_fd);
-#endif
     }
+
+    // Load external alert configuration files
+    DIR *dh = opendir(alert_config.c_str());
+    if (dh == NULL) {
+        csLog::Log(csLog::Warning,
+            "Error opening external alert directory: %s: %s", alert_config.c_str(), strerror(errno));
+        return;
+    }
+
+    struct dirent *entry;
+    struct stat conf_stat;
+
+    while ((entry = readdir(dh)) != NULL) {
+        if (ISDOT(entry->d_name)) continue;
+        string path = alert_config.c_str();
+        path.append("/");
+        path.append(entry->d_name);
+        if (stat(path.c_str(), &conf_stat) != 0) {
+            csLog::Log(csLog::Warning,
+                "Can't stat config file: %s: %s\n", path.c_str(), strerror(errno));
+            continue;
+        }
+        if (S_ISDIR(conf_stat.st_mode)) continue;
+
+        csLog::Log(csLog::Debug, "Loading config file: %s", path.c_str());
+
+        INIReader reader(path.c_str());
+
+        if (reader.ParseError() < 0) {
+            csLog::Log(csLog::Warning,
+                "Error parsing external configuration: %s", path.c_str());
+        }
+
+        string type = reader.Get("alert", "type", "");
+        if (type.length() == 0) {
+            csLog::Log(csLog::Warning,
+                "External configuration; missing %s: %s", "type", path.c_str());
+            continue;
+        }
+        string level = reader.Get("alert", "level", "NORM");
+        string source = reader.Get("alert", "source", "");
+        if (source.length() == 0) {
+            csLog::Log(csLog::Warning,
+                "External configuration; missing %s: %s", "source", path.c_str());
+            continue;
+        }
+        bool excluded = reader.GetBoolean("alert", "excluded", false);
+
+        csLog::Log(csLog::Warning, "type: %s", type.c_str());
+        csLog::Log(csLog::Warning, "level: %s", level.c_str());
+        csLog::Log(csLog::Warning, "source: %s", source.c_str());
+        csLog::Log(csLog::Warning, "excluded: %s", excluded ? "true" : "false");
+    }
+
+    closedir(dh);
 }
 
 void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)

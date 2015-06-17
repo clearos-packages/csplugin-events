@@ -22,6 +22,8 @@
 #define _EVENTS_CONF_SYSWATCH_STATE "/var/lib/syswatch/state"
 #define _EVENTS_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-events/syslog.socket"
 
+#define ISDOT(a)    (a[0] == '.' && (!a[1] || (a[1] == '.' && !a[2])))
+
 typedef map<uint32_t, string> csAlertIdMap;
 
 class csEventsAlertPatternExistsException : public csException
