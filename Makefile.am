@@ -5,7 +5,8 @@ SUBDIRS = inih
 
 EXTRA_DIST = csplugin-events.conf csplugin-events.h events-alert.h \
 	events-conf.h events-db.h events-db-sql.h events-socket.h \
-	events-syslog.h eventsctl.h deploy/rsyslog.conf
+	events-syslog.h eventsctl.h deploy/rsyslog.conf \
+	csplugin-events.spec
 
 AM_CFLAGS = ${CFLAGS}
 AM_CXXFLAGS = ${CXXFLAGS}
