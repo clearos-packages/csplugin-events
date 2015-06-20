@@ -15,6 +15,9 @@ BuildRequires: clearsync-devel >= 2.0
 BuildRequires: expat-devel
 BuildRequires: sqlite-devel
 BuildRequires: openssl-devel
+BuildRequires: autoconf >= 2.63
+BuildRequires: automake
+BuildRequires: libtool
 Summary: ClearSync System Monitor plugin
 Requires(pre): /sbin/ldconfig, /usr/sbin/groupmems
 
