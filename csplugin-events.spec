@@ -44,7 +44,7 @@ cp -v csplugin-events.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearsync.d
 mkdir -vp ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events
 touch ${RPM_BUILD_ROOT}/%{_localstatedir}/lib/csplugin-events/events.db
 mkdir -vp ${RPM_BUILD_ROOT}/%{_sysconfdir}/rsyslog.d
-cp -v deploy/rsyslog.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/10-clearsync.conf
+cp -v deploy/rsyslog.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/rsyslog.d/10-clearsync.conf
 
 # Clean-up
 %clean
