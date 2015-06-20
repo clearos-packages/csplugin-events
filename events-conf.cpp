@@ -129,6 +129,7 @@ void csEventsConf::Reload(void)
 
     struct dirent *entry;
     struct stat conf_stat;
+    csEventsAlertSourceConfig *asc = NULL;
 
     while ((entry = readdir(dh)) != NULL) {
         if (ISDOT(entry->d_name)) continue;
@@ -157,7 +158,7 @@ void csEventsConf::Reload(void)
                 "External configuration; missing %s: %s", "type", path.c_str());
             continue;
         }
-        string level = reader.Get("alert", "level", "NORM");
+        string level_str = reader.Get("alert", "level", "NORM");
         string source = reader.Get("alert", "source", "");
         if (source.length() == 0) {
             csLog::Log(csLog::Warning,
@@ -167,9 +168,38 @@ void csEventsConf::Reload(void)
         bool excluded = reader.GetBoolean("alert", "excluded", false);
 
         csLog::Log(csLog::Warning, "type: %s", type.c_str());
-        csLog::Log(csLog::Warning, "level: %s", level.c_str());
+        csLog::Log(csLog::Warning, "level: %s", level_str.c_str());
         csLog::Log(csLog::Warning, "source: %s", source.c_str());
         csLog::Log(csLog::Warning, "excluded: %s", excluded ? "true" : "false");
+
+        uint32_t id = 0;
+        try {
+            id = GetAlertId(type);
+        }
+        catch (csException &e) { }
+        if (id == 0)
+            throw csEventsIniParseException("invalid type parameter", path.c_str());
+
+        uint32_t level = 0;
+
+        if (strncasecmp(level_str.c_str(), "NORM", 4) == 0)
+            level = csEventsAlert::csAF_LVL_NORM;
+        else if (strncasecmp(level_str.c_str(), "WARN", 4) == 0)
+            level = csEventsAlert::csAF_LVL_WARN;
+        else if (strncasecmp(level_str.c_str(), "CRIT", 4) == 0)
+            level = csEventsAlert::csAF_LVL_CRIT;
+        else
+            throw csEventsIniParseException("invalid level parameter", path.c_str());
+        if (source == "syslog") {
+            csEventsAlertSourceConfig_syslog *syslog_config =
+                new csEventsAlertSourceConfig_syslog(id, level);
+            syslog_config->Exclude(excluded);
+            asc = reinterpret_cast<csEventsAlertSourceConfig *>(syslog_config);
+        }
+
+        if (asc == NULL)
+            throw csEventsIniParseException("missing configuration data", path.c_str());
+        alert_source_config.push_back(asc);
     }
 
     closedir(dh);

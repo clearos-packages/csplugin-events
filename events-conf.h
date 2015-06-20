@@ -40,6 +40,17 @@ public:
         : csException(ENOENT, "Alert pattern not found") { }
 };
 
+class csEventsIniParseException : public csException
+{
+public:
+    explicit csEventsIniParseException(const char *what, const char *filename)
+        : csException(EINVAL, what), filename(filename)
+        { };
+    virtual ~csEventsIniParseException() throw() { };
+
+    string filename;
+};
+
 class csEventsAlertSourceConfig
 {
 public:
