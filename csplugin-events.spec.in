@@ -25,6 +25,7 @@ Report bugs to: @PACKAGE_BUGREPORT@
 # Build
 %prep
 %setup -q
+./autogen.sh
 %configure %{?_with_pic}
 
 %build

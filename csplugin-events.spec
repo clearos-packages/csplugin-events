@@ -25,6 +25,7 @@ Report bugs to: http://www.clearfoundation.com/docs/developer/bug_tracker/
 # Build
 %prep
 %setup -q
+./autogen.sh
 %configure %{?_with_pic}
 
 %build
