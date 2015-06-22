@@ -114,22 +114,24 @@ void csEventsConf::Reload(void)
             throw csException(errno, "Error parsing external configuration");
 
         enable_status = reader.GetBoolean("", "status", "true");
-        csLog::Log(csLog::Debug, "%s: %s = %ld", __PRETTY_FUNCTION__, "status", enable_status);
+        csLog::Log(csLog::Debug,
+            "%s: %s = %ld", __PRETTY_FUNCTION__, "status", enable_status);
         max_age_ttl = (time_t)reader.GetInteger("", "autopurge", 60 * 86400);
-        csLog::Log(csLog::Debug, "%s: %s = %ld", __PRETTY_FUNCTION__, "autopurge", max_age_ttl);
+        csLog::Log(csLog::Debug,
+            "%s: %s = %ld", __PRETTY_FUNCTION__, "autopurge", max_age_ttl);
     }
 
     // Load external alert configuration files
     DIR *dh = opendir(alert_config.c_str());
     if (dh == NULL) {
         csLog::Log(csLog::Warning,
-            "Error opening external alert directory: %s: %s", alert_config.c_str(), strerror(errno));
+            "Error opening external alert directory: %s: %s",
+            alert_config.c_str(), strerror(errno));
         return;
     }
 
     struct dirent *entry;
     struct stat conf_stat;
-    csEventsAlertSourceConfig *asc = NULL;
 
     while ((entry = readdir(dh)) != NULL) {
         if (ISDOT(entry->d_name)) continue;
@@ -143,63 +145,7 @@ void csEventsConf::Reload(void)
         }
         if (S_ISDIR(conf_stat.st_mode)) continue;
 
-        csLog::Log(csLog::Debug, "Loading config file: %s", path.c_str());
-
-        INIReader reader(path.c_str());
-
-        if (reader.ParseError() < 0) {
-            csLog::Log(csLog::Warning,
-                "Error parsing external configuration: %s", path.c_str());
-        }
-
-        string type = reader.Get("alert", "type", "");
-        if (type.length() == 0) {
-            csLog::Log(csLog::Warning,
-                "External configuration; missing %s: %s", "type", path.c_str());
-            continue;
-        }
-        string level_str = reader.Get("alert", "level", "NORM");
-        string source = reader.Get("alert", "source", "");
-        if (source.length() == 0) {
-            csLog::Log(csLog::Warning,
-                "External configuration; missing %s: %s", "source", path.c_str());
-            continue;
-        }
-        bool excluded = reader.GetBoolean("alert", "excluded", false);
-
-        csLog::Log(csLog::Warning, "type: %s", type.c_str());
-        csLog::Log(csLog::Warning, "level: %s", level_str.c_str());
-        csLog::Log(csLog::Warning, "source: %s", source.c_str());
-        csLog::Log(csLog::Warning, "excluded: %s", excluded ? "true" : "false");
-
-        uint32_t id = 0;
-        try {
-            id = GetAlertId(type);
-        }
-        catch (csException &e) { }
-        if (id == 0)
-            throw csEventsIniParseException("invalid type parameter", path.c_str());
-
-        uint32_t level = 0;
-
-        if (strncasecmp(level_str.c_str(), "NORM", 4) == 0)
-            level = csEventsAlert::csAF_LVL_NORM;
-        else if (strncasecmp(level_str.c_str(), "WARN", 4) == 0)
-            level = csEventsAlert::csAF_LVL_WARN;
-        else if (strncasecmp(level_str.c_str(), "CRIT", 4) == 0)
-            level = csEventsAlert::csAF_LVL_CRIT;
-        else
-            throw csEventsIniParseException("invalid level parameter", path.c_str());
-        if (source == "syslog") {
-            csEventsAlertSourceConfig_syslog *syslog_config =
-                new csEventsAlertSourceConfig_syslog(id, level);
-            syslog_config->Exclude(excluded);
-            asc = reinterpret_cast<csEventsAlertSourceConfig *>(syslog_config);
-        }
-
-        if (asc == NULL)
-            throw csEventsIniParseException("missing configuration data", path.c_str());
-        alert_source_config.push_back(asc);
+        alerts_parser->Parse(path.c_str());
     }
 
     closedir(dh);
@@ -210,65 +156,6 @@ void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
     csEventsConf *_conf = static_cast<csEventsConf *>(conf);
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
-
-    if ((*tag) == "alert") {
-        if (!stack.size() || (*stack.back()) != "alerts")
-            ParseError("unexpected tag: " + tag->GetName());
-        if (!tag->ParamExists("type"))
-            ParseError("type parameter missing");
-        if (!tag->ParamExists("level"))
-            ParseError("level parameter missing");
-        if (!tag->ParamExists("source"))
-            ParseError("source parameter missing");
-
-        uint32_t id = 0;
-        try {
-            id = _conf->GetAlertId(tag->GetParamValue("type"));
-        }
-        catch (csException &e) { }
-        if (id == 0)
-            ParseError("invalid type parameter");
-
-        uint32_t level = 0;
-        const char *level_param = tag->GetParamValue("level").c_str();
-
-        if (strncasecmp(level_param, "NORM", 4) == 0)
-            level = csEventsAlert::csAF_LVL_NORM;
-        else if (strncasecmp(level_param, "WARN", 4) == 0)
-            level = csEventsAlert::csAF_LVL_WARN;
-        else if (strncasecmp(level_param, "CRIT", 4) == 0)
-            level = csEventsAlert::csAF_LVL_CRIT;
-        else
-            ParseError("invalid level parameter");
-
-        if (tag->GetParamValue("source") == "syslog") {
-            csEventsAlertSourceConfig_syslog *syslog_config;
-            syslog_config = new csEventsAlertSourceConfig_syslog(id, level);
-            if (tag->ParamExists("exclude") &&
-                tag->GetParamValue("exclude") == "true")
-                syslog_config->Exclude(true);
-            tag->SetData(syslog_config);
-
-        }
-        else
-            ParseError("invalid source parameter");
-    }
-    else if ((*tag) == "locale") {
-        if (!stack.size() || (*stack.back()) != "alert")
-            ParseError("unexpected tag: " + tag->GetName());
-        if (!tag->ParamExists("lang"))
-            ParseError("lang parameter missing");
-
-        csEventsAlertSourceConfig *asc;
-        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
-        if (asc == NULL) ParseError("missing configuration data");
-        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
-            ParseError("wrong type of configuration data");
-        csEventsAlertSourceConfig_syslog *ascs;
-        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
-        ascs->SetLocale(tag->GetParamValue("lang"));
-        tag->SetData(asc);
-    }
 }
 
 void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
@@ -377,11 +264,76 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
 
         _conf->alert_types[id] = tag->GetParamValue("type");
     }
-    else if ((*tag) == "alerts") {
-        if (!stack.size() || (*stack.back()) != "plugin")
+}
+
+void csAlertsXmlParser::ParseElementOpen(csXmlTag *tag)
+{
+    csEventsConf *_conf = static_cast<csEventsConf *>(conf);
+
+    csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
+
+    if ((*tag) == "alert") {
+        if (!stack.size() || (*stack.back()) != "alerts")
             ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("type"))
+            ParseError("type parameter missing");
+        if (!tag->ParamExists("level"))
+            ParseError("level parameter missing");
+        if (!tag->ParamExists("source"))
+            ParseError("source parameter missing");
+
+        uint32_t id = 0;
+        try {
+            id = _conf->GetAlertId(tag->GetParamValue("type"));
+        }
+        catch (csException &e) { }
+        if (id == 0)
+            ParseError("invalid type parameter");
+
+        uint32_t level = 0;
+        try {
+            level = _conf->GetAlertLevel(tag->GetParamValue("level"));
+        } catch (csException &e) { }
+        if (level == 0)
+            ParseError("invalid level parameter");
+
+        if (tag->GetParamValue("source") == "syslog") {
+            csEventsAlertSourceConfig_syslog *syslog_config;
+            syslog_config = new csEventsAlertSourceConfig_syslog(id, level);
+            if (tag->ParamExists("exclude") &&
+                tag->GetParamValue("exclude") == "true")
+                syslog_config->Exclude(true);
+            tag->SetData(syslog_config);
+
+        }
+        else
+            ParseError("invalid source parameter");
     }
-    else if ((*tag) == "text") {
+    else if ((*tag) == "locale") {
+        if (!stack.size() || (*stack.back()) != "alert")
+            ParseError("unexpected tag: " + tag->GetName());
+        if (!tag->ParamExists("lang"))
+            ParseError("lang parameter missing");
+
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
+        if (asc == NULL) ParseError("missing configuration data");
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
+            ParseError("wrong type of configuration data");
+        csEventsAlertSourceConfig_syslog *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
+        ascs->SetLocale(tag->GetParamValue("lang"));
+        tag->SetData(asc);
+    }
+}
+
+void csAlertsXmlParser::ParseElementClose(csXmlTag *tag)
+{
+    csEventsConf *_conf = static_cast<csEventsConf *>(conf);
+
+    csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
+
+    if ((*tag) == "text") {
         if (!stack.size() || (*stack.back()) != "locale")
             ParseError("unexpected tag: " + tag->GetName());
 
@@ -449,11 +401,25 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
     }
 }
 
+csEventsConf::csEventsConf(csPluginEvents *parent,
+        const char *filename, csPluginXmlParser *parser)
+        : csConf(filename, parser), parent(parent), alerts_parser(NULL),
+        initdb(false), max_age_ttl(0), enable_status(true),
+        events_socket_path(_EVENTS_CONF_EVENTS_SOCKET),
+        sqlite_db_filename(_EVENTS_CONF_SQLITE_DB),
+        syslog_socket_path(_EVENTS_CONF_SYSLOG_SOCKET),
+        syswatch_state_path(_EVENTS_CONF_SYSWATCH_STATE)
+{
+    alerts_parser = new csAlertsXmlParser();
+    alerts_parser->SetConf(this);
+}
+
 csEventsConf::~csEventsConf()
 {
     csAlertSourceConfigVector::iterator i;
     for (i = alert_source_config.begin(); i != alert_source_config.end(); i++)
         delete (*i);
+    if (alerts_parser != NULL) delete alerts_parser;
 }
 
 uint32_t csEventsConf::GetAlertId(const string &type)
@@ -474,6 +440,22 @@ string csEventsConf::GetAlertType(uint32_t id)
     if (i == alert_types.end())
         throw csException(ENOENT, "No such Alert ID");
     return i->second;
+}
+
+uint32_t csEventsConf::GetAlertLevel(const string &level)
+{
+    uint32_t level_id = 0;
+
+    if (strncasecmp(level.c_str(), "NORM", 4) == 0)
+        level_id = csEventsAlert::csAF_LVL_NORM;
+    else if (strncasecmp(level.c_str(), "WARN", 4) == 0)
+        level_id = csEventsAlert::csAF_LVL_WARN;
+    else if (strncasecmp(level.c_str(), "CRIT", 4) == 0)
+        level_id = csEventsAlert::csAF_LVL_CRIT;
+    else
+        throw csException(EINVAL, "Invalid level");
+
+    return level_id;
 }
 
 void csEventsConf::GetAlertTypes(csAlertIdMap &types)

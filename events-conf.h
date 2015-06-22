@@ -43,12 +43,10 @@ public:
 class csEventsIniParseException : public csException
 {
 public:
-    explicit csEventsIniParseException(const char *what, const char *filename)
-        : csException(EINVAL, what), filename(filename)
+    explicit csEventsIniParseException(const char *what)
+        : csException(EINVAL, what)
         { };
     virtual ~csEventsIniParseException() throw() { };
-
-    string filename;
 };
 
 class csEventsAlertSourceConfig
@@ -119,6 +117,14 @@ public:
     virtual void ParseElementClose(csXmlTag *tag);
 };
 
+class csAlertsXmlParser : public csXmlParser
+{
+public:
+    virtual void ParseElementOpen(csXmlTag *tag);
+    virtual void ParseElementClose(csXmlTag *tag);
+};
+
+
 class csPluginEvents;
 class csEventsConf : public csConf
 {
@@ -131,13 +137,7 @@ public:
     };
 
     csEventsConf(csPluginEvents *parent,
-        const char *filename, csPluginXmlParser *parser)
-        : csConf(filename, parser), parent(parent),
-        initdb(false), max_age_ttl(0), enable_status(true),
-        events_socket_path(_EVENTS_CONF_EVENTS_SOCKET),
-        sqlite_db_filename(_EVENTS_CONF_SQLITE_DB),
-        syslog_socket_path(_EVENTS_CONF_SYSLOG_SOCKET),
-        syswatch_state_path(_EVENTS_CONF_SYSWATCH_STATE) { };
+        const char *filename, csPluginXmlParser *parser);
     virtual ~csEventsConf();
 
     virtual void Reload(void);
@@ -153,13 +153,16 @@ public:
     const string GetSyswatchStatePath(void) const { return syswatch_state_path; }
     uint32_t GetAlertId(const string &type);
     string GetAlertType(uint32_t id);
+    uint32_t GetAlertLevel(const string &level);
     void GetAlertTypes(csAlertIdMap &types);
     void GetAlertSourceConfigs(csAlertSourceConfigVector &configs);
 
 protected:
     friend class csPluginXmlParser;
+    friend class csAlertsXmlParser;
 
     csPluginEvents *parent;
+    csAlertsXmlParser *alerts_parser;
 
     bool initdb;
     time_t max_age_ttl;
