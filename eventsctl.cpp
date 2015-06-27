@@ -88,6 +88,10 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Specify an alert type.  Try \"list\" to show available types.");
         csLog::Log(csLog::Info,
+            "  -l <level>, --level <level>");
+        csLog::Log(csLog::Info,
+            "    Specify an alert level; NORMal, WARNing, or CRITical.");
+        csLog::Log(csLog::Info,
             "  -u <user>, --user <user>");
         csLog::Log(csLog::Info,
             "    Specify an optional username or UID.");
@@ -141,6 +145,7 @@ int main(int argc, char *argv[])
         // Send an alert
         { "send", 0, 0, 's' },
         { "type", 1, 0, 't' },
+        { "level", 1, 0, 'l' },
         { "user", 1, 0, 'u' },
         { "origin", 1, 0, 'o' },
         { "basename", 1, 0, 'b' },
@@ -149,7 +154,7 @@ int main(int argc, char *argv[])
         // Mark resolved
         { "mark-resolved", 0, 0, 'r' },
         // List alerts
-        { "list", 0, 0, 'l' },
+        { "list", 0, 0, 'L' },
 
         { NULL, 0, 0, 0 }
     };
@@ -162,7 +167,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?st:u:U:b:o:rl", options, &o)) == -1) break;
+            "Vc:dh?st:u:U:b:o:rl:L", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);
@@ -203,10 +208,28 @@ int main(int argc, char *argv[])
         case 'a':
             alert_flags |= csEventsAlert::csAF_FLG_AUTO_RESOLVE;
             break;
+        case 'l':
+            if (strncasecmp("NORM", optarg, 4) == 0) {
+                alert_flags &= ~(csEventsAlert::csAF_LVL_WARN | csEventsAlert::csAF_LVL_CRIT);
+                alert_flags |= csEventsAlert::csAF_LVL_NORM;
+            }
+            else if (strncasecmp("WARN", optarg, 4) == 0) {
+                alert_flags &= ~(csEventsAlert::csAF_LVL_NORM | csEventsAlert::csAF_LVL_CRIT);
+                alert_flags |= csEventsAlert::csAF_LVL_WARN;
+            }
+            else if (strncasecmp("CRIT", optarg, 4) == 0) {
+                alert_flags &= ~(csEventsAlert::csAF_LVL_NORM | csEventsAlert::csAF_LVL_WARN);
+                alert_flags |= csEventsAlert::csAF_LVL_CRIT;
+            }
+            else {
+                csLog::Log(csLog::Error, "Invalid alert level specified.");
+                exit(1);
+            }
+            break;
         case 'r':
             mode = csEventsCtl::CTLM_MARK_RESOLVED;
             break;
-        case 'l':
+        case 'L':
             mode = csEventsCtl::CTLM_LIST_ALERTS;
             break;
         }

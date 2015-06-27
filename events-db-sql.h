@@ -17,10 +17,14 @@
 #ifndef _EVENTS_DB_SQL_H
 #define _EVENTS_DB_SQL_H
 
+// Pragma SQL defines
+
 #define _EVENTS_DB_SQLITE_PRAGMA_FOREIGN_KEY "\
 PRAGMA \
     foreign_keys = ON \
 ;"
+
+// Create SQL defines
 
 #define _EVENTS_DB_SQLITE_CREATE_ALERTS "\
 CREATE TABLE IF NOT EXISTS alerts( \
@@ -52,11 +56,55 @@ CREATE TABLE IF NOT EXISTS stamps( \
     FOREIGN KEY (aid) REFERENCES alerts(id) ON DELETE CASCADE \
 );"
 
+#define _EVENTS_DB_SQLITE_CREATE_TYPES "\
+CREATE TABLE IF NOT EXISTS types( \
+    id INTEGER PRIMARY KEY AUTOINCREMENT, \
+    tag TEXT NOT NULL, \
+    basename TEXT NOT NULL \
+);"
+
+// Select SQL defines
+
+#define _EVENTS_DB_SQLITE_SELECT_ALERT "\
+SELECT \
+    alerts.id AS id, \
+    alerts.created AS created, \
+    stamps.stamp AS updated, \
+    alerts.flags AS flags, \
+    alerts.type AS type, \
+    alerts.user AS user, \
+    alerts.origin AS origin, \
+    alerts.basename AS basename, \
+    alerts.uuid AS uuid, \
+    alerts.desc AS desc \
+FROM alerts, stamps \
+WHERE stamps.aid = alerts.id \
+"
+
+#define _EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH "\
+SELECT id \
+FROM alerts \
+WHERE hash = @hash \
+;"
+
+#define _EVENTS_DB_SQLITE_SELECT_GROUP "\
+SELECT * \
+FROM groups \
+WHERE id = @id \
+"
+
 #define _EVENTS_DB_SQLITE_SELECT_LAST_ID "\
 SELECT seq \
 FROM sqlite_sequence \
 WHERE name = @table_name \
 ;"
+
+#define _EVENTS_DB_SQLITE_SELECT_TYPES "\
+SELECT id, tag \
+FROM types \
+;"
+
+// Insert SQL defines
 
 #define _EVENTS_DB_SQLITE_INSERT_ALERT "\
 INSERT INTO alerts ( \
@@ -94,16 +142,17 @@ VALUES ( \
     @stamp \
 );"
 
-#define _EVENTS_DB_SQLITE_PURGE_ALERTS "\
-DELETE FROM alerts \
-WHERE updated < @max_age \
-AND flags & @csAF_FLG_RESOLVED \
-;"
+#define _EVENTS_DB_SQLITE_INSERT_TYPE "\
+INSERT INTO types ( \
+    tag, \
+    basename \
+) \
+VALUES ( \
+    @tag, \
+    @basename \
+);"
 
-#define _EVENTS_DB_SQLITE_PURGE_STAMPS "\
-DELETE FROM stamps \
-WHERE stamp < @max_age \
-;"
+// Update SQL defines
 
 #define _EVENTS_DB_SQLITE_UPDATE_ALERT "\
 UPDATE alerts \
@@ -117,34 +166,23 @@ SET flags = flags | @csAF_FLG_RESOLVED \
 WHERE type = @type \
 ;"
 
-#define _EVENTS_DB_SQLITE_SELECT_ALERT "\
-SELECT \
-    alerts.id AS id, \
-    alerts.created AS created, \
-    stamps.stamp AS updated, \
-    alerts.flags AS flags, \
-    alerts.type AS type, \
-    alerts.user AS user, \
-    alerts.origin AS origin, \
-    alerts.basename AS basename, \
-    alerts.uuid AS uuid, \
-    alerts.desc AS desc \
-FROM alerts, stamps \
-WHERE stamps.aid = alerts.id \
-"
+// Delete SQL defines
 
-#define _EVENTS_DB_SQLITE_SELECT_ALERT_BY_HASH "\
-SELECT \
-    id \
-FROM alerts \
-WHERE hash = @hash \
+#define _EVENTS_DB_SQLITE_PURGE_ALERTS "\
+DELETE FROM alerts \
+WHERE updated < @max_age \
+AND flags & @csAF_FLG_RESOLVED \
 ;"
 
-#define _EVENTS_DB_SQLITE_SELECT_GROUP "\
-SELECT * \
-FROM groups \
-WHERE id = @id \
-"
+#define _EVENTS_DB_SQLITE_PURGE_STAMPS "\
+DELETE FROM stamps \
+WHERE stamp < @max_age \
+;"
+
+#define _EVENTS_DB_SQLITE_DELETE_TYPE "\
+DELETE FROM types \
+WHERE tag = @tag \
+;"
 
 #endif // _EVENTS_DB_SQL_H
 

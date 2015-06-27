@@ -181,6 +181,10 @@ void csEventsDb_sqlite::Create(void)
     sql.str("");
     sql << _EVENTS_DB_SQLITE_CREATE_GROUPS;
     Exec(csEventsDb_sqlite_exec);
+    // Create types
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_CREATE_TYPES;
+    Exec(csEventsDb_sqlite_exec);
 
     // Prepare statements
     rc = sqlite3_prepare_v2(handle,
@@ -274,6 +278,9 @@ void csEventsDb_sqlite::Drop(void)
     Exec(csEventsDb_sqlite_exec);
     sql.str("");
     sql << "DROP TABLE IF EXISTS groups;";
+    Exec(csEventsDb_sqlite_exec);
+    sql.str("");
+    sql << "DROP TABLE IF EXISTS types;";
     Exec(csEventsDb_sqlite_exec);
 }
 
