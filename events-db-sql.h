@@ -97,6 +97,7 @@ VALUES ( \
 #define _EVENTS_DB_SQLITE_PURGE_ALERTS "\
 DELETE FROM alerts \
 WHERE updated < @max_age \
+AND flags & @csAF_FLG_RESOLVED \
 ;"
 
 #define _EVENTS_DB_SQLITE_PURGE_STAMPS "\
@@ -106,11 +107,9 @@ WHERE stamp < @max_age \
 
 #define _EVENTS_DB_SQLITE_UPDATE_ALERT "\
 UPDATE alerts \
-SET updated = @stamp, flags = 0 \
+SET updated = @stamp, flags = @flags, desc = @desc \
 WHERE id = @id \
 ;"
-
-//#define _EVENTS_DB_SQLITE_PURGE_ALERTS  "DELETE FROM alerts WHERE stamp < @max_age AND flags & @csAF_FLG_READ AND NOT flags & @csAF_FLG_PERSIST;"
 
 #define _EVENTS_DB_SQLITE_MARK_RESOLVED "\
 UPDATE alerts \

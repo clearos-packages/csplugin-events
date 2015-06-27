@@ -21,6 +21,7 @@
 #include <clearsync/csplugin.h>
 
 #include <sstream>
+#include <iomanip>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -28,6 +29,7 @@
 #include <sqlite3.h>
 
 #include <sys/sysinfo.h>
+#include <sys/statvfs.h>
 
 #include <openssl/sha.h>
 
@@ -52,6 +54,11 @@ csPluginEvents::csPluginEvents(const string &name,
         temp = locale.substr(0, uscore_delim);
         locale = temp;
     }
+
+    events_sysinfo_keys.push_back("$threshold");
+    events_sysinfo_keys.push_back("$path");
+    events_sysinfo_keys.push_back("$swap_used");
+    events_sysinfo_keys.push_back("$vol_used");
 
     csLog::Log(csLog::Debug, "%s: Initialized (locale: %s)",
         name.c_str(), locale.c_str());
@@ -182,6 +189,7 @@ void csPluginEvents::LoadAlertConfig(csEventsAlertSourceConfig_sysinfo *sysinfo_
     config->duration = sysinfo_config->GetDuration();
     config->trigger_start_time = 0;
     config->trigger_active = false;
+    config->path = sysinfo_config->GetPath();
     
     csAlertSourceMap_sysinfo_text *text = sysinfo_config->GetText();
     for (csAlertSourceMap_sysinfo_text::iterator i = text->begin();
@@ -322,7 +330,10 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
                     if ((*j)->auto_resolve)
                         alert.SetFlag(csEventsAlert::csAF_FLG_AUTO_RESOLVE);
                     alert.SetDescription(text);
-
+                    alert.SetUUID(text);
+                    alert.SetUser();
+                    alert.SetOrigin("internal-syslog");
+                    alert.SetBasename("csplugin-events");
                     events_db->InsertAlert(alert);
 
                     break;
@@ -432,7 +443,9 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
 
 void csPluginEvents::ProcessSysinfoRefresh(void)
 {
+    struct statvfs fs_info;
     struct sysinfo sys_info;
+    float vol_used_pct = 0.0f;
 
     if (sysinfo(&sys_info) < 0) {
         csLog::Log(csLog::Warning, "%s: sysinfo: %s", name.c_str(), strerror(errno));
@@ -446,6 +459,7 @@ void csPluginEvents::ProcessSysinfoRefresh(void)
     loads[2] = ((float)sys_info.loads[2]) / load_shift;
     float swap_used_pct = ((float)sys_info.totalswap - (float)sys_info.freeswap) *
         100.0f / (float)sys_info.totalswap;
+
 /*
     csLog::Log(csLog::Debug,
         "%s: System Information", name.c_str());
@@ -467,16 +481,30 @@ void csPluginEvents::ProcessSysinfoRefresh(void)
             j != i->second.end(); j++) {
             switch (i->first) {
             case csEventsAlertSourceConfig_sysinfo::csSIK_LOAD_1M:
-                ProcessSysinfoThreshold((*j), loads[0]);
+                ProcessSysinfoThreshold(i->first, (*j), loads[0]);
                 break;
             case csEventsAlertSourceConfig_sysinfo::csSIK_LOAD_5M:
-                ProcessSysinfoThreshold((*j), loads[1]);
+                ProcessSysinfoThreshold(i->first, (*j), loads[1]);
                 break;
             case csEventsAlertSourceConfig_sysinfo::csSIK_LOAD_15M:
-                ProcessSysinfoThreshold((*j), loads[2]);
+                ProcessSysinfoThreshold(i->first, (*j), loads[2]);
                 break;
             case csEventsAlertSourceConfig_sysinfo::csSIK_SWAP_USAGE:
-                ProcessSysinfoThreshold((*j), swap_used_pct);
+                ProcessSysinfoThreshold(i->first, (*j), swap_used_pct);
+                break;
+            case csEventsAlertSourceConfig_sysinfo::csSIK_VOL_USAGE:
+                if (statvfs((*j)->path.c_str(), &fs_info) < 0) {
+                    csLog::Log(csLog::Warning,
+                        "%s: statvfs: %s", name.c_str(), strerror(errno));
+                    break;
+                }
+                vol_used_pct = ((float)fs_info.f_blocks - (float)fs_info.f_bavail) *
+                    100.0f / (float)fs_info.f_blocks;
+                csLog::Log(csLog::Debug,
+                    "%s: volume %s, used: %.02f%%",
+                    name.c_str(), (*j)->path.c_str(),
+                    fs_info.f_blocks, vol_used_pct);
+                ProcessSysinfoThreshold(i->first, (*j), vol_used_pct);
                 break;
             case csEventsAlertSourceConfig_sysinfo::csSIK_NULL:
             default:
@@ -486,8 +514,14 @@ void csPluginEvents::ProcessSysinfoRefresh(void)
     }
 }
 
-void csPluginEvents::ProcessSysinfoThreshold(csEventsSysinfoConfig *config, float threshold)
+void csPluginEvents::ProcessSysinfoThreshold(
+    csEventsAlertSourceConfig_sysinfo::csEventsAlertSource_sysinfo_key key,
+    csEventsSysinfoConfig *config, float threshold)
 {
+    size_t pos;
+    ostringstream value;
+    string description;
+
     if (threshold >= config->threshold) {
         if (config->trigger_start_time == 0)
             config->trigger_start_time = time(NULL);
@@ -502,11 +536,11 @@ void csPluginEvents::ProcessSysinfoThreshold(csEventsSysinfoConfig *config, floa
 
             map<string, string>::iterator text = config->text.find(locale);
             if (text != config->text.end())
-                alert.SetDescription(text->second);
+                description = text->second;
             else {
                 text = config->text.find("en");
                 if (text != config->text.end())
-                    alert.SetDescription(text->second);
+                    description = text->second;
                 else {
                     csLog::Log(csLog::Debug,
                         "%s: No localized text found for sysinfo alert",
@@ -514,6 +548,31 @@ void csPluginEvents::ProcessSysinfoThreshold(csEventsSysinfoConfig *config, floa
                     return;
                 }
             }
+
+            for (vector<string>::iterator i = events_sysinfo_keys.begin();
+                i != events_sysinfo_keys.end(); i++) {
+
+                value.str("");
+                if ((*i) == "$threshold")
+                    value << setprecision(4) << config->threshold;
+                else if ((*i) == "$path")
+                    value << config->path;
+                else if ((*i) == "$swap_used" || (*i) == "$vol_used")
+                    value << setprecision(4) << threshold;
+                else
+                    continue;
+
+                while ((pos = description.find((*i))) != string::npos)
+                    description.replace(pos, (*i).length(), value.str());
+            }
+
+            alert.SetDescription(description);
+            alert.SetOrigin("internal-sysinfo");
+            alert.SetBasename("csplugin-events");
+            alert.SetUser();
+
+            if (key == csEventsAlertSourceConfig_sysinfo::csSIK_VOL_USAGE)
+                alert.SetUUID(config->path);
 
             events_db->InsertAlert(alert);
         }

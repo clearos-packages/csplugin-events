@@ -20,6 +20,9 @@
 
 #include <clearsync/csplugin.h>
 
+#include <sys/types.h>
+
+#include <unistd.h>
 #include <pwd.h>
 #include <openssl/sha.h>
 
@@ -121,6 +124,11 @@ void csEventsAlert::SetUser(const string &user)
     data.user = pwent->pw_uid;
 }
 
+void csEventsAlert::SetUser(void)
+{
+    data.user = geteuid();
+}
+
 void csEventsAlert::UpdateHash(void)
 {
     SHA_CTX ctx;
@@ -159,10 +167,12 @@ void csEventsAlert::UpdateHash(void)
     }
 
     // ...description
+    /*
     if (data.desc.length() > 0) {
         SHA1_Update(&ctx,
             (const uint8_t *)data.desc.c_str(), data.desc.length());
     }
+    */
 
     SHA1_Final(hash, &ctx);
     ::csBinaryToHex(hash, hash_str, SHA_DIGEST_LENGTH);

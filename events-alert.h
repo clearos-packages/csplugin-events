@@ -102,6 +102,7 @@ public:
     void SetType(uint32_t type) { data.type = type; };
     void SetUser(const string &user);
     void SetUser(uid_t uid) { data.user = uid; };
+    void SetUser(void);
     void AddGroup(gid_t gid);
     void ClearGroups(void) { data.groups.clear(); };
     void SetOrigin(const string &origin) { data.origin = origin; };

@@ -133,6 +133,9 @@ void csEventsAlertSourceConfig_sysinfo::SetKey(const string &key)
     else if (strcasecmp("swap_usage", key.c_str()) == 0) {
         this->key = csSIK_SWAP_USAGE;
     }
+    else if (strcasecmp("vol_usage", key.c_str()) == 0) {
+        this->key = csSIK_VOL_USAGE;
+    }
     else {
         this->key = csSIK_NULL;
         csLog::Log(csLog::Error, "Invalid sysinfo key: \"%s\"", key.c_str());
@@ -158,6 +161,11 @@ void csEventsAlertSourceConfig_sysinfo::SetDuration(unsigned int duration)
     this->duration = duration;
 }
 
+void csEventsAlertSourceConfig_sysinfo::SetPath(const string &path)
+{
+    this->path = path;
+}
+
 void csEventsConf::Reload(void)
 {
     csConf::Reload();
@@ -174,7 +182,7 @@ void csEventsConf::Reload(void)
         enable_status = reader.GetBoolean("", "status", "true");
         csLog::Log(csLog::Debug,
             "%s: %s = %ld", __PRETTY_FUNCTION__, "status", enable_status);
-        max_age_ttl = (time_t)reader.GetInteger("", "autopurge", 60 * 86400);
+        max_age_ttl = (time_t)reader.GetInteger("", "autopurge", 60) * 86400;
         csLog::Log(csLog::Debug,
             "%s: %s = %ld", __PRETTY_FUNCTION__, "autopurge", max_age_ttl);
     }
@@ -519,6 +527,21 @@ void csAlertsXmlParser::ParseElementClose(csXmlTag *tag)
         csEventsAlertSourceConfig_sysinfo *ascs;
         ascs = reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>(stack.back()->GetData());
         ascs->SetDuration(atoi(tag->GetText().c_str()));
+    }
+    else if ((*tag) == "path") {
+        if (!stack.size() || (*stack.back()) != "alert")
+            ParseError("unexpected tag: " + tag->GetName());
+
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSINFO)
+            ParseError("wrong type of configuration data");
+
+        csEventsAlertSourceConfig_sysinfo *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>(stack.back()->GetData());
+        ascs->SetPath(tag->GetText());
     }
     else if ((*tag) == "alert") {
         if (!stack.size() || (*stack.back()) != "alerts")

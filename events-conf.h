@@ -126,6 +126,8 @@ public:
         csSIK_LOAD_15M,
         // Swap usage (percentage)
         csSIK_SWAP_USAGE,
+        // Volume usage (percentage)
+        csSIK_VOL_USAGE,
     };
 
     csEventsAlertSourceConfig_sysinfo(uint32_t alert_type, uint32_t alert_level);
@@ -136,16 +138,19 @@ public:
     void SetKey(const string &key);
     void SetThreshold(float threshold);
     void SetDuration(unsigned int duration);
+    void SetPath(const string &path);
 
     csEventsAlertSource_sysinfo_key GetKey(void) { return key; }
     float GetThreshold(void) { return threshold; }
     unsigned int GetDuration(void) { return duration; }
+    string GetPath(void) { return path; }
 
 protected:
     csEventsAlertSource_sysinfo_key key;
     float threshold;
     unsigned int duration;
     csAlertSourceMap_sysinfo_text text;
+    string path;
 };
 
 class csEventsConf;

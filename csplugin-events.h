@@ -49,6 +49,7 @@ typedef struct
     time_t trigger_start_time;
     bool trigger_active;
     map<string, string> text;
+    string path;
 } csEventsSysinfoConfig;
 
 typedef map<csEventsAlertSourceConfig_sysinfo::csEventsAlertSource_sysinfo_key, vector<csEventsSysinfoConfig *> > csEventsSysinfoConfigMap;
@@ -73,7 +74,9 @@ protected:
     void ProcessEventSelect(fd_set &fds);
     void ProcessClientRequest(csEventsSocketClient *client);
     void ProcessSysinfoRefresh(void);
-    void ProcessSysinfoThreshold(csEventsSysinfoConfig *config, float threshold);
+    void ProcessSysinfoThreshold(
+        csEventsAlertSourceConfig_sysinfo::csEventsAlertSource_sysinfo_key key,
+        csEventsSysinfoConfig *config, float threshold);
 
     void SyslogTextSubstitute(string &dst,
         csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
@@ -86,6 +89,7 @@ protected:
     csPluginEventsClientMap events_socket_client;
     csEventsSyslogRegExVector events_syslog_rx;
     csEventsSysinfoConfigMap events_sysinfo;
+    vector<string> events_sysinfo_keys;
 };
 
 #endif // _CSPLUGIN_EVENTS_H

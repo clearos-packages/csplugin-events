@@ -507,6 +507,25 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
                     __PRETTY_FUNCTION__, "update_alert", "stamp", sqlite3_errstr(rc));
                 throw csEventsDbException(rc, sqlite3_errstr(rc));
             }
+            // Flags
+            index = sqlite3_bind_parameter_index(update_alert, "@flags");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: flags");
+            if ((rc = sqlite3_bind_int64(update_alert,
+                index, static_cast<sqlite3_int64>(alert.GetFlags()))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "update_alert", "flags", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+            // Description
+            index = sqlite3_bind_parameter_index(update_alert, "@desc");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: desc");
+            if ((rc = sqlite3_bind_text(update_alert, index,
+                alert.GetDescriptionChar(), alert.GetDescriptionLength(),
+                SQLITE_TRANSIENT)) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "update_alert", "desc", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
 
             do {
                 rc = sqlite3_step(update_alert);
@@ -588,14 +607,20 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
         if ((rc = sqlite3_bind_int64(purge_alerts,
             index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
-
+        // csAF_FLG_RESOLVED (alerts)
+        index = sqlite3_bind_parameter_index(purge_alerts, "@csAF_FLG_RESOLVED");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: csAF_FLG_RESOLVED");
+        if ((rc = sqlite3_bind_int64(purge_alerts, index,
+            static_cast<sqlite3_int64>(csEventsAlert::csAF_FLG_RESOLVED))) != SQLITE_OK)
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+/*
         // Max age (stamps)
         index = sqlite3_bind_parameter_index(purge_stamps, "@max_age");
         if (index == 0) throw csException(EINVAL, "SQL parameter missing: max_age");
         if ((rc = sqlite3_bind_int64(purge_stamps,
             index, static_cast<sqlite3_int64>(age))) != SQLITE_OK)
             throw csEventsDbException(rc, sqlite3_errstr(rc));
-
+*/
         // Run purge alerts
         do {
             rc = sqlite3_step(purge_alerts);
@@ -607,7 +632,7 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
             rc = sqlite3_errcode(handle);
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
-
+/*
         // Run purge stamps
         do {
             rc = sqlite3_step(purge_stamps);
@@ -619,9 +644,9 @@ void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
             rc = sqlite3_errcode(handle);
             throw csEventsDbException(rc, sqlite3_errstr(rc));
         }
-
+*/
         sqlite3_reset(purge_alerts);
-        sqlite3_reset(purge_stamps);
+//        sqlite3_reset(purge_stamps);
     }
     catch (csException &e) {
         sqlite3_reset(purge_alerts);
