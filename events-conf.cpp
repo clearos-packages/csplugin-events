@@ -36,7 +36,8 @@
 
 csEventsAlertSourceConfig::csEventsAlertSourceConfig(
     csEventsAlertSourceType type, uint32_t alert_type, uint32_t alert_level)
-    : type(type), alert_type(alert_type), alert_level(alert_level)
+    : type(type), alert_type(alert_type), alert_level(alert_level), locale("en"),
+    auto_resolve(false)
 {
 }
 
@@ -45,9 +46,9 @@ csEventsAlertSourceConfig::~csEventsAlertSourceConfig()
 }
 
 csEventsAlertSourceConfig_syslog::csEventsAlertSourceConfig_syslog(
-    uint32_t alert_type, uint32_t alert_level
-) : csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level),
-    locale("en"), exclude(false)
+    uint32_t alert_type, uint32_t alert_level)
+    : csEventsAlertSourceConfig(csAST_SYSLOG, alert_type, alert_level),
+    exclude(false)
 {
 }
 
@@ -100,6 +101,63 @@ void csEventsAlertSourceConfig_syslog::AddPattern(const string &pattern)
     p->pattern = pattern;
 }
 
+csEventsAlertSourceConfig_sysinfo::csEventsAlertSourceConfig_sysinfo(
+    uint32_t alert_type, uint32_t alert_level)
+    : csEventsAlertSourceConfig(csAST_SYSINFO, alert_type, alert_level),
+    key(csSIK_NULL), threshold(0.0f), duration(0)
+{
+}
+
+void csEventsAlertSourceConfig_sysinfo::AddText(const string &locale, const string &text)
+{
+    csAlertSourceMap_sysinfo_text::iterator i = this->text.find(locale);
+    if (i != this->text.end()) {
+        csLog::Log(csLog::Warning,
+            "Duplicate sysinfo text entry for locale: \"%s\"", locale.c_str());
+        return;
+    }
+    this->text[locale] = text;
+}
+
+void csEventsAlertSourceConfig_sysinfo::SetKey(const string &key)
+{
+    if (strcasecmp("load_1m", key.c_str()) == 0) {
+        this->key = csSIK_LOAD_1M;
+    }
+    else if (strcasecmp("load_5m", key.c_str()) == 0) {
+        this->key = csSIK_LOAD_5M;
+    }
+    else if (strcasecmp("load_15m", key.c_str()) == 0) {
+        this->key = csSIK_LOAD_15M;
+    }
+    else if (strcasecmp("swap_usage", key.c_str()) == 0) {
+        this->key = csSIK_SWAP_USAGE;
+    }
+    else {
+        this->key = csSIK_NULL;
+        csLog::Log(csLog::Error, "Invalid sysinfo key: \"%s\"", key.c_str());
+        throw csException(EINVAL, "Invalid sysinfo key");
+    }
+}
+
+void csEventsAlertSourceConfig_sysinfo::SetThreshold(float threshold)
+{
+    if (threshold <= 0.0f) {
+        csLog::Log(csLog::Error, "Invalid sysinfo threshold: %.02f", threshold);
+        throw csException(EINVAL, "Invalid sysinfo threshold");
+    }
+    this->threshold = threshold;
+}
+
+void csEventsAlertSourceConfig_sysinfo::SetDuration(unsigned int duration)
+{
+    if (duration == 0) {
+        csLog::Log(csLog::Error, "Invalid sysinfo duration: %d", duration);
+        throw csException(EINVAL, "Invalid sysinfo duration");
+    }
+    this->duration = duration;
+}
+
 void csEventsConf::Reload(void)
 {
     csConf::Reload();
@@ -135,9 +193,11 @@ void csEventsConf::Reload(void)
 
     while ((entry = readdir(dh)) != NULL) {
         if (ISDOT(entry->d_name)) continue;
+
         string path = alert_config.c_str();
         path.append("/");
         path.append(entry->d_name);
+
         if (stat(path.c_str(), &conf_stat) != 0) {
             csLog::Log(csLog::Warning,
                 "Can't stat config file: %s: %s\n", path.c_str(), strerror(errno));
@@ -297,6 +357,7 @@ void csAlertsXmlParser::ParseElementOpen(csXmlTag *tag)
         if (level == 0)
             ParseError("invalid level parameter");
 
+        csEventsAlertSourceConfig *asc = NULL;
         if (tag->GetParamValue("source") == "syslog") {
             csEventsAlertSourceConfig_syslog *syslog_config;
             syslog_config = new csEventsAlertSourceConfig_syslog(id, level);
@@ -304,10 +365,21 @@ void csAlertsXmlParser::ParseElementOpen(csXmlTag *tag)
                 tag->GetParamValue("exclude") == "true")
                 syslog_config->Exclude(true);
             tag->SetData(syslog_config);
-
+            asc = syslog_config;
         }
-        else
+        else if (tag->GetParamValue("source") == "sysinfo") {
+            csEventsAlertSourceConfig_sysinfo *sysinfo_config;
+            sysinfo_config = new csEventsAlertSourceConfig_sysinfo(id, level);
+            tag->SetData(sysinfo_config);
+            asc = sysinfo_config;
+        }
+
+        if (asc == NULL)
             ParseError("invalid source parameter");
+
+        if (tag->ParamExists("auto-resolve") &&
+            tag->GetParamValue("auto-resolve") == "true")
+            asc->SetAutoResolve();
     }
     else if ((*tag) == "locale") {
         if (!stack.size() || (*stack.back()) != "alert")
@@ -315,9 +387,10 @@ void csAlertsXmlParser::ParseElementOpen(csXmlTag *tag)
         if (!tag->ParamExists("lang"))
             ParseError("lang parameter missing");
 
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
         csEventsAlertSourceConfig *asc;
         asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
-        if (asc == NULL) ParseError("missing configuration data");
         if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
         csEventsAlertSourceConfig_syslog *ascs;
@@ -334,22 +407,32 @@ void csAlertsXmlParser::ParseElementClose(csXmlTag *tag)
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
 
     if ((*tag) == "text") {
-        if (!stack.size() || (*stack.back()) != "locale")
+        if (!stack.size() ||
+            ((*stack.back()) != "locale" && *(stack.back()) != "alert"))
             ParseError("unexpected tag: " + tag->GetName());
 
         string text = tag->GetText();
         if (text.length() == 0) ParseError("alert text missing");
 
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
         csEventsAlertSourceConfig *asc;
         asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
-        if (asc == NULL) ParseError("missing configuration data");
-        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
+
+        if (asc->GetType() == csEventsAlertSourceConfig::csAST_SYSLOG) {
+            csEventsAlertSourceConfig_syslog *ascs;
+            ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
+            ascs->AddText(text);
+        }
+        else if (asc->GetType() == csEventsAlertSourceConfig::csAST_SYSINFO) {
+            csEventsAlertSourceConfig_sysinfo *ascs;
+            ascs = reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>(stack.back()->GetData());
+            string locale = "en";
+            if (tag->ParamExists("lang")) locale = tag->GetParamValue("lang");
+            ascs->AddText(locale, text);
+        }
+        else
             ParseError("wrong type of configuration data");
-
-        csEventsAlertSourceConfig_syslog *ascs;
-        ascs = reinterpret_cast<csEventsAlertSourceConfig_syslog *>(stack.back()->GetData());
-
-        ascs->AddText(text);
     }
     else if ((*tag) == "match") {
         if (!stack.size() || (*stack.back()) != "locale")
@@ -359,9 +442,10 @@ void csAlertsXmlParser::ParseElementClose(csXmlTag *tag)
         if (!tag->ParamExists("name"))
             ParseError("name parameter missing");
 
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
         csEventsAlertSourceConfig *asc;
         asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
-        if (asc == NULL) ParseError("missing configuration data");
         if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
 
@@ -379,9 +463,10 @@ void csAlertsXmlParser::ParseElementClose(csXmlTag *tag)
         string text = tag->GetText();
         if (text.length() == 0) ParseError("pattern text missing");
 
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
         csEventsAlertSourceConfig *asc;
         asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
-        if (asc == NULL) ParseError("missing configuration data");
         if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG)
             ParseError("wrong type of configuration data");
 
@@ -390,13 +475,59 @@ void csAlertsXmlParser::ParseElementClose(csXmlTag *tag)
 
         ascs->AddPattern(text);
     }
+    else if ((*tag) == "key") {
+        if (!stack.size() || (*stack.back()) != "alert")
+            ParseError("unexpected tag: " + tag->GetName());
+
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSINFO)
+            ParseError("wrong type of configuration data");
+
+        csEventsAlertSourceConfig_sysinfo *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>(stack.back()->GetData());
+        ascs->SetKey(tag->GetText());
+    }
+    else if ((*tag) == "threshold") {
+        if (!stack.size() || (*stack.back()) != "alert")
+            ParseError("unexpected tag: " + tag->GetName());
+
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSINFO)
+            ParseError("wrong type of configuration data");
+
+        csEventsAlertSourceConfig_sysinfo *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>(stack.back()->GetData());
+        ascs->SetThreshold(atof(tag->GetText().c_str()));
+    }
+    else if ((*tag) == "duration") {
+        if (!stack.size() || (*stack.back()) != "alert")
+            ParseError("unexpected tag: " + tag->GetName());
+
+        if (stack.back()->GetData() == NULL) ParseError("missing configuration data");
+
+        csEventsAlertSourceConfig *asc;
+        asc = reinterpret_cast<csEventsAlertSourceConfig *>(stack.back()->GetData());
+        if (asc->GetType() != csEventsAlertSourceConfig::csAST_SYSINFO)
+            ParseError("wrong type of configuration data");
+
+        csEventsAlertSourceConfig_sysinfo *ascs;
+        ascs = reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>(stack.back()->GetData());
+        ascs->SetDuration(atoi(tag->GetText().c_str()));
+    }
     else if ((*tag) == "alert") {
         if (!stack.size() || (*stack.back()) != "alerts")
             ParseError("unexpected tag: " + tag->GetName());
 
+        if (tag->GetData() == NULL) ParseError("missing configuration data");
+
         csEventsAlertSourceConfig *asc;
         asc = reinterpret_cast<csEventsAlertSourceConfig *>(tag->GetData());
-        if (asc == NULL) ParseError("missing configuration data");
         _conf->alert_source_config.push_back(asc);
     }
 }

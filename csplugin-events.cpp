@@ -27,6 +27,8 @@
 #include <linux/un.h>
 #include <sqlite3.h>
 
+#include <sys/sysinfo.h>
+
 #include <openssl/sha.h>
 
 #include "events-conf.h"
@@ -71,6 +73,13 @@ csPluginEvents::~csPluginEvents()
         if ((*i)->rx_en) delete (*i)->rx_en;
         delete (*i);
     }
+    for (csEventsSysinfoConfigMap::iterator i = events_sysinfo.begin();
+        i != events_sysinfo.end(); i++) {
+        for (vector<csEventsSysinfoConfig *>::iterator j = i->second.begin();
+            j != i->second.end(); j++) {
+            delete (*j);
+        }
+    }
 }
 
 void csPluginEvents::SetConfigurationFile(const string &conf_filename)
@@ -99,68 +108,90 @@ void csPluginEvents::SetConfigurationFile(const string &conf_filename)
     csAlertSourceConfigVector alert_sources;
     events_conf->GetAlertSourceConfigs(alert_sources);
 
-    int compiled = 0;
-    csAlertSourceMap_syslog_pattern *patterns;
-
     for (csAlertSourceConfigVector::iterator i = alert_sources.begin();
         i != alert_sources.end(); i++) {
 
-        if ((*i)->GetType() != csEventsAlertSourceConfig::csAST_SYSLOG) continue;
-
-        csEventsAlertSourceConfig_syslog *syslog_config;
-        syslog_config = reinterpret_cast<csEventsAlertSourceConfig_syslog *>((*i));
-
-        patterns = syslog_config->GetPatterns();
-
-        for (csAlertSourceMap_syslog_pattern::iterator j = patterns->begin();
-            j != patterns->end(); j++) {
-
-            csEventsSyslogRegEx *entry = NULL;
-
-            try {
-                entry = new csEventsSyslogRegEx;
-                memset(entry, 0, sizeof(csEventsSyslogRegEx));
-                entry->type = syslog_config->GetAlertType();
-                entry->level = syslog_config->GetAlertLevel();
-                entry->exclude = syslog_config->IsExcluded();
-
-                if (j->first == locale) {
-                    entry->rx = new csRegEx(
-                        j->second->pattern.c_str(),
-                        j->second->match.size() + 1
-                    );
-                    entry->config = j->second;
-                }
-                if (j->first == "en") {
-                    entry->rx_en = new csRegEx(
-                        j->second->pattern.c_str(),
-                        j->second->match.size() + 1
-                    );
-                    entry->config_en = j->second;
-                }
-
-                if (entry->rx == NULL && entry->rx_en == NULL) {
-                    delete entry;
-                    continue;
-                }
-
-                compiled++;
-            }
-            catch (csException &e) {
-                csLog::Log(csLog::Error,
-                    "%s: Regular expression compilation failed: %s",
-                        name.c_str(), e.what());
-                if (entry != NULL) delete entry;
-                entry = NULL;
-            }
-
-            if (entry != NULL)
-                events_syslog_rx.push_back(entry);
+        if ((*i)->GetType() == csEventsAlertSourceConfig::csAST_SYSLOG) {
+            LoadAlertConfig(
+                reinterpret_cast<csEventsAlertSourceConfig_syslog *>((*i)));
+        }
+        else if ((*i)->GetType() == csEventsAlertSourceConfig::csAST_SYSINFO) {
+            LoadAlertConfig(
+                reinterpret_cast<csEventsAlertSourceConfig_sysinfo *>((*i)));
         }
     }
+}
 
-    csLog::Log(csLog::Debug,
-        "%s: Compiled %d regular expressions", name.c_str(), compiled);
+void csPluginEvents::LoadAlertConfig(csEventsAlertSourceConfig_syslog *syslog_config)
+{
+    csAlertSourceMap_syslog_pattern *patterns;
+    patterns = syslog_config->GetPatterns();
+
+    for (csAlertSourceMap_syslog_pattern::iterator j = patterns->begin();
+        j != patterns->end(); j++) {
+
+        csEventsSyslogRegEx *entry = NULL;
+
+        try {
+            entry = new csEventsSyslogRegEx;
+            memset(entry, 0, sizeof(csEventsSyslogRegEx));
+            entry->type = syslog_config->GetAlertType();
+            entry->level = syslog_config->GetAlertLevel();
+            entry->exclude = syslog_config->IsExcluded();
+
+            if (j->first == locale) {
+                entry->rx = new csRegEx(
+                    j->second->pattern.c_str(),
+                    j->second->match.size() + 1
+                );
+                entry->config = j->second;
+            }
+            if (j->first == "en") {
+                entry->rx_en = new csRegEx(
+                    j->second->pattern.c_str(),
+                    j->second->match.size() + 1
+                );
+                entry->config_en = j->second;
+            }
+
+            if (entry->rx == NULL && entry->rx_en == NULL) {
+                delete entry;
+                continue;
+            }
+        }
+        catch (csException &e) {
+            csLog::Log(csLog::Error,
+                "%s: Regular expression compilation failed: %s",
+                    name.c_str(), e.what());
+            if (entry != NULL) delete entry;
+            entry = NULL;
+        }
+
+        if (entry != NULL)
+            events_syslog_rx.push_back(entry);
+    }
+}
+
+void csPluginEvents::LoadAlertConfig(csEventsAlertSourceConfig_sysinfo *sysinfo_config)
+{
+    csEventsSysinfoConfig *config = new csEventsSysinfoConfig;
+    config->type = sysinfo_config->GetAlertType();
+    config->level = sysinfo_config->GetAlertLevel();
+    config->auto_resolve = sysinfo_config->IsAutoResolving();
+    config->threshold = sysinfo_config->GetThreshold();
+    config->duration = sysinfo_config->GetDuration();
+    config->trigger_start_time = 0;
+    config->trigger_active = false;
+    
+    csAlertSourceMap_sysinfo_text *text = sysinfo_config->GetText();
+    for (csAlertSourceMap_sysinfo_text::iterator i = text->begin();
+        i != text->end(); i++) {
+        map<string, string>::iterator j = config->text.find(i->first);
+        if (j != config->text.end()) continue;
+        config->text[i->first] = i->second;
+    }
+
+    events_sysinfo[sysinfo_config->GetKey()].push_back(config);
 }
 
 void *csPluginEvents::Entry(void)
@@ -181,14 +212,15 @@ void *csPluginEvents::Entry(void)
             "%s: Database exception: %s", name.c_str(), e.estring.c_str());
     }
 
-    csTimer *purge_timer = new csTimer(
-        _CSPLUGIN_EVENTS_PURGE_TIMER, 3, 3, this
+    csTimer *purge_timer = new csTimer(_CSPLUGIN_EVENTS_PURGE_TIMER_ID,
+        _CSPLUGIN_EVENTS_PURGE_TIMER, _CSPLUGIN_EVENTS_PURGE_TIMER, this
     );
     purge_timer->Start();
-    csTimer *sysdata_timer = new csTimer(
-        _CSPLUGIN_EVENTS_SYSDATA_TIMER, 10, 10, this
+
+    csTimer *sysinfo_timer = new csTimer(_CSPLUGIN_EVENTS_SYSINFO_TIMER_ID,
+        _CSPLUGIN_EVENTS_SYSINFO_TIMER, _CSPLUGIN_EVENTS_SYSINFO_TIMER, this
     );
-    sysdata_timer->Start();
+    sysinfo_timer->Start();
 
     for (bool run = true; run; ) {
 
@@ -226,12 +258,12 @@ void *csPluginEvents::Entry(void)
             case csEVENT_TIMER:
                 timer = static_cast<csEventTimer *>(event)->GetTimer();
 
-                if (timer->GetId() == _CSPLUGIN_EVENTS_PURGE_TIMER &&
+                if (timer->GetId() == _CSPLUGIN_EVENTS_PURGE_TIMER_ID &&
                     events_conf->GetMaxAgeTTL()) {
                     events_db->PurgeAlerts(csEventsAlert(),
                         time(NULL) - events_conf->GetMaxAgeTTL());
-                } else if (timer->GetId() == _CSPLUGIN_EVENTS_SYSDATA_TIMER) {
-                }
+                } else if (timer->GetId() == _CSPLUGIN_EVENTS_SYSINFO_TIMER_ID)
+                    ProcessSysinfoRefresh();
                 break;
             }
 
@@ -287,6 +319,8 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
                     csEventsAlert alert;
                     alert.SetType((*j)->type);
                     alert.SetFlag((*j)->level);
+                    if ((*j)->auto_resolve)
+                        alert.SetFlag(csEventsAlert::csAF_FLG_AUTO_RESOLVE);
                     alert.SetDescription(text);
 
                     events_db->InsertAlert(alert);
@@ -393,6 +427,106 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
     default:
         csLog::Log(csLog::Warning,
             "%s: Unhandled op-code: %02x", name.c_str(), client->GetOpCode());
+    }
+}
+
+void csPluginEvents::ProcessSysinfoRefresh(void)
+{
+    struct sysinfo sys_info;
+
+    if (sysinfo(&sys_info) < 0) {
+        csLog::Log(csLog::Warning, "%s: sysinfo: %s", name.c_str(), strerror(errno));
+        return;
+    }
+
+    float loads[3];
+    float load_shift = (float)(1 << SI_LOAD_SHIFT);
+    loads[0] = ((float)sys_info.loads[0]) / load_shift;
+    loads[1] = ((float)sys_info.loads[1]) / load_shift;
+    loads[2] = ((float)sys_info.loads[2]) / load_shift;
+    float swap_used_pct = ((float)sys_info.totalswap - (float)sys_info.freeswap) *
+        100.0f / (float)sys_info.totalswap;
+/*
+    csLog::Log(csLog::Debug,
+        "%s: System Information", name.c_str());
+    csLog::Log(csLog::Debug,
+        "%s: uptime: %ld", name.c_str(), sys_info.uptime);
+    csLog::Log(csLog::Debug,
+        "%s: load averages: %.02f %.02f %.02f", name.c_str(),
+        loads[0], loads[1], loads[2]);
+    csLog::Log(csLog::Debug,
+        "%s: swap available: %ld", name.c_str(),
+        sys_info.freeswap);
+    csLog::Log(csLog::Debug,
+        "%s: swap total: %ld, %.02f%% used", name.c_str(),
+        sys_info.totalswap, swap_used_pct);
+*/
+    for (csEventsSysinfoConfigMap::iterator i = events_sysinfo.begin();
+        i != events_sysinfo.end(); i++) {
+        for (vector<csEventsSysinfoConfig *>::iterator j = i->second.begin();
+            j != i->second.end(); j++) {
+            switch (i->first) {
+            case csEventsAlertSourceConfig_sysinfo::csSIK_LOAD_1M:
+                ProcessSysinfoThreshold((*j), loads[0]);
+                break;
+            case csEventsAlertSourceConfig_sysinfo::csSIK_LOAD_5M:
+                ProcessSysinfoThreshold((*j), loads[1]);
+                break;
+            case csEventsAlertSourceConfig_sysinfo::csSIK_LOAD_15M:
+                ProcessSysinfoThreshold((*j), loads[2]);
+                break;
+            case csEventsAlertSourceConfig_sysinfo::csSIK_SWAP_USAGE:
+                ProcessSysinfoThreshold((*j), swap_used_pct);
+                break;
+            case csEventsAlertSourceConfig_sysinfo::csSIK_NULL:
+            default:
+                break;
+            }
+        }
+    }
+}
+
+void csPluginEvents::ProcessSysinfoThreshold(csEventsSysinfoConfig *config, float threshold)
+{
+    if (threshold >= config->threshold) {
+        if (config->trigger_start_time == 0)
+            config->trigger_start_time = time(NULL);
+        else if (config->trigger_active) return;
+        else if (time(NULL) - config->trigger_start_time > (time_t)config->duration) {
+            csEventsAlert alert;
+            alert.SetType(config->type);
+            alert.SetFlag(config->level);
+            if (config->auto_resolve)
+                alert.SetFlag(csEventsAlert::csAF_FLG_AUTO_RESOLVE);
+            config->trigger_active = true;
+
+            map<string, string>::iterator text = config->text.find(locale);
+            if (text != config->text.end())
+                alert.SetDescription(text->second);
+            else {
+                text = config->text.find("en");
+                if (text != config->text.end())
+                    alert.SetDescription(text->second);
+                else {
+                    csLog::Log(csLog::Debug,
+                        "%s: No localized text found for sysinfo alert",
+                        name.c_str());
+                    return;
+                }
+            }
+
+            events_db->InsertAlert(alert);
+        }
+    }
+    else if (config->trigger_start_time > 0) {
+        config->trigger_start_time = 0;
+        if (config->auto_resolve && config->trigger_active) {
+            config->trigger_active = false;
+            events_db->MarkAsResolved(config->type);
+            csLog::Log(csLog::Debug,
+                "%s: Auto-resolved sysinfo alert",
+                name.c_str());
+        }
     }
 }
 

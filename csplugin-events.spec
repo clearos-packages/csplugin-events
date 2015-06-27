@@ -66,23 +66,6 @@ cp -av deploy/events.d ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearos
 %endif
 /sbin/service rsyslog condrestart >/dev/null 2>&1 || :
 
-# Add command(s) to sudo configuration
-#CHECK=`grep "^clearsync[[:space:]]*" /etc/sudoers`
-#if [ -z "$CHECK" ]; then
-#    echo "Cmnd_Alias CLEARSYNC = " >> /etc/sudoers
-#	echo "clearsync ALL=NOPASSWD: CLEARSYNC" >> /etc/sudoers
-#fi
-
-#CMD=/sbin/service
-#LINE=`grep "^Cmnd_Alias CLEARSYNC" /etc/sudoers 2>/dev/null`
-#CHECK=`echo $LINE, | grep $CMD,`
-#if [ -z "$CHECK" ]; then
-#	ESCAPE=`echo $CMD | sed 's/\//\\\\\//g'`
-#	sed -i -e "s/Cmnd_Alias CLEARSYNC.*=/Cmnd_Alias CLEARSYNC = $ESCAPE,/i" /etc/sudoers
-#	sed -i -e "s/[[:space:]]*,[[:space:]]*$//i" /etc/sudoers
-#	chmod 440 /etc/sudoers
-#fi
-
 # Post uninstall
 %postun
 /sbin/ldconfig
@@ -96,11 +79,11 @@ cp -av deploy/events.d ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearos
 # Files
 %files
 %defattr(-,root,root)
-%config(noreplace) %{_sysconfdir}/clearsync.d/csplugin-events.conf
+%config %{_sysconfdir}/clearsync.d/csplugin-events.conf
 %{_libdir}/libcsplugin-events.so*
 %attr(770,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/
 %attr(660,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/events.db
 %{_bindir}/eventsctl
-%attr(644,root,root) %{_sysconfdir}/rsyslog.d/10-clearsync.conf
-%attr(644,root,root) %{_sysconfdir}/clearos/events.d/*.conf
+%config %attr(644,root,root) %{_sysconfdir}/rsyslog.d/10-clearsync.conf
+%config(noreplace) %attr(644,root,root) %{_sysconfdir}/clearos/events.d/*.conf
 

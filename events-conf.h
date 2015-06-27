@@ -56,7 +56,7 @@ public:
     {
         csAST_NULL,
         csAST_SYSLOG,
-        csAST_SYSWATCH,
+        csAST_SYSINFO,
     };
 
     csEventsAlertSourceConfig(
@@ -67,10 +67,16 @@ public:
     uint32_t GetAlertType(void) { return alert_type; }
     uint32_t GetAlertLevel(void) { return alert_level; }
 
+    void SetLocale(const string &locale) { this->locale = locale; }
+    void SetAutoResolve(bool enable = true) { auto_resolve = enable; }
+    bool IsAutoResolving(void) { return auto_resolve; }
+
 protected:
     csEventsAlertSourceType type;
     uint32_t alert_type;
     uint32_t alert_level;
+    string locale;
+    bool auto_resolve;
 };
 
 typedef vector<csEventsAlertSourceConfig *> csAlertSourceConfigVector;
@@ -92,8 +98,6 @@ public:
     csEventsAlertSourceConfig_syslog(uint32_t alert_type, uint32_t alert_level);
     virtual ~csEventsAlertSourceConfig_syslog();
 
-    void SetLocale(const string &locale) { this->locale = locale; }
-
     void AddText(const string &text);
     void AddMatchVar(int index, const string &name);
     void AddPattern(const string &pattern);
@@ -104,9 +108,44 @@ public:
     bool IsExcluded(void) { return exclude; };
 
 protected:
-    string locale;
     bool exclude;
     csAlertSourceMap_syslog_pattern patterns;
+};
+
+typedef map<string, string> csAlertSourceMap_sysinfo_text;
+
+class csEventsAlertSourceConfig_sysinfo : public csEventsAlertSourceConfig
+{
+public:
+    enum csEventsAlertSource_sysinfo_key
+    {
+        csSIK_NULL,
+        // Load averages
+        csSIK_LOAD_1M,
+        csSIK_LOAD_5M,
+        csSIK_LOAD_15M,
+        // Swap usage (percentage)
+        csSIK_SWAP_USAGE,
+    };
+
+    csEventsAlertSourceConfig_sysinfo(uint32_t alert_type, uint32_t alert_level);
+
+    void AddText(const string &locale, const string &text);
+    csAlertSourceMap_sysinfo_text *GetText(void) { return &text; }
+
+    void SetKey(const string &key);
+    void SetThreshold(float threshold);
+    void SetDuration(unsigned int duration);
+
+    csEventsAlertSource_sysinfo_key GetKey(void) { return key; }
+    float GetThreshold(void) { return threshold; }
+    unsigned int GetDuration(void) { return duration; }
+
+protected:
+    csEventsAlertSource_sysinfo_key key;
+    float threshold;
+    unsigned int duration;
+    csAlertSourceMap_sysinfo_text text;
 };
 
 class csEventsConf;
@@ -129,13 +168,6 @@ class csPluginEvents;
 class csEventsConf : public csConf
 {
 public:
-    enum csEventsAlertSourceType
-    {
-        csAST_NULL,
-        csAST_SYSLOG,
-        csAST_SYSWATCH,
-    };
-
     csEventsConf(csPluginEvents *parent,
         const char *filename, csPluginXmlParser *parser);
     virtual ~csEventsConf();

@@ -17,8 +17,10 @@
 #ifndef _CSPLUGIN_EVENTS_H
 #define _CSPLUGIN_EVENTS_H
 
-#define _CSPLUGIN_EVENTS_PURGE_TIMER    500
-#define _CSPLUGIN_EVENTS_SYSDATA_TIMER  501
+#define _CSPLUGIN_EVENTS_PURGE_TIMER_ID     500
+#define _CSPLUGIN_EVENTS_PURGE_TIMER        60
+#define _CSPLUGIN_EVENTS_SYSINFO_TIMER_ID   501
+#define _CSPLUGIN_EVENTS_SYSINFO_TIMER      5
 
 typedef map<int, csEventsSocketClient *> csPluginEventsClientMap;
 typedef map<int, string> csEventsSyslogTextSubIndexMap;
@@ -28,6 +30,7 @@ typedef struct
     uint32_t type;
     uint32_t level;
     bool exclude;
+    bool auto_resolve;
     csRegEx *rx;
     csRegEx *rx_en;
     csAlertSourceConfig_syslog_pattern *config;
@@ -35,6 +38,20 @@ typedef struct
 } csEventsSyslogRegEx;
 
 typedef vector<csEventsSyslogRegEx *> csEventsSyslogRegExVector;
+
+typedef struct
+{
+    uint32_t type;
+    uint32_t level;
+    bool auto_resolve;
+    float threshold;
+    int duration;
+    time_t trigger_start_time;
+    bool trigger_active;
+    map<string, string> text;
+} csEventsSysinfoConfig;
+
+typedef map<csEventsAlertSourceConfig_sysinfo::csEventsAlertSource_sysinfo_key, vector<csEventsSysinfoConfig *> > csEventsSysinfoConfigMap;
 
 class csPluginEvents : public csPlugin
 {
@@ -50,8 +67,13 @@ public:
 protected:
     friend class csPluginXmlParser;
 
+    void LoadAlertConfig(csEventsAlertSourceConfig_syslog *syslog_config);
+    void LoadAlertConfig(csEventsAlertSourceConfig_sysinfo *sysinfo_config);
+
     void ProcessEventSelect(fd_set &fds);
     void ProcessClientRequest(csEventsSocketClient *client);
+    void ProcessSysinfoRefresh(void);
+    void ProcessSysinfoThreshold(csEventsSysinfoConfig *config, float threshold);
 
     void SyslogTextSubstitute(string &dst,
         csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
@@ -63,6 +85,7 @@ protected:
     csEventsSocketServer *events_socket_server;
     csPluginEventsClientMap events_socket_client;
     csEventsSyslogRegExVector events_syslog_rx;
+    csEventsSysinfoConfigMap events_sysinfo;
 };
 
 #endif // _CSPLUGIN_EVENTS_H
