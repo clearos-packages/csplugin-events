@@ -55,7 +55,6 @@ public:
 
     virtual void InsertType(const string &tag, const string &basename) { }
     virtual void DeleteType(const string &tag) { }
-
     virtual uint32_t SelectTypes(map<uint32_t, string> *result) { return 0; }
 
 protected:

@@ -171,9 +171,9 @@ int main(int argc, char *argv[])
         { "mark-resolved", 0, 0, 'r' },
         // List alerts
         { "list", 0, 0, 'L' },
-        // Register/unregister type
+        // Register/deregister type
         { "register", 0, 0, 'R' },
-        { "unregister", 0, 0, 'U' },
+        { "deregister", 0, 0, 'D' },
 
         { NULL, 0, 0, 0 }
     };
