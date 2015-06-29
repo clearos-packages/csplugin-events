@@ -19,8 +19,8 @@
 
 #define _EVENTS_CONF_SQLITE_DB      "/var/lib/csplugin-events/events.db"
 #define _EVENTS_CONF_EVENTS_SOCKET  "/var/lib/csplugin-events/events.socket"
-#define _EVENTS_CONF_SYSWATCH_STATE "/var/lib/syswatch/state"
 #define _EVENTS_CONF_SYSLOG_SOCKET  "/var/lib/csplugin-events/syslog.socket"
+#define _EVENTS_CONF_SYSINFO_REFRESH 5
 
 #define ISDOT(a)    (a[0] == '.' && (!a[1] || (a[1] == '.' && !a[2])))
 
@@ -187,11 +187,12 @@ public:
     const string GetEventsSocketPath(void) const { return events_socket_path; }
     const string GetSqliteDbFilename(void) const { return sqlite_db_filename; }
     const string GetSyslogSocketPath(void) const { return syslog_socket_path; }
-    const string GetSyswatchStatePath(void) const { return syswatch_state_path; }
+    const time_t GetSysinfoRefresh(void) const { return sysinfo_refresh; }
     uint32_t GetAlertId(const string &type);
     string GetAlertType(uint32_t id);
     uint32_t GetAlertLevel(const string &level);
     void GetAlertTypes(csAlertIdMap &types);
+    void MergeRegisteredAlertTypes(csAlertIdMap &types);
     void GetAlertSourceConfigs(csAlertSourceConfigVector &configs);
 
 protected:
@@ -209,7 +210,7 @@ protected:
     string events_socket_path;
     string sqlite_db_filename;
     string syslog_socket_path;
-    string syswatch_state_path;
+    time_t sysinfo_refresh;
     csAlertIdMap alert_types;
     csAlertSourceConfigVector alert_source_config;
 };

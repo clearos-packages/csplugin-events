@@ -20,7 +20,6 @@
 #define _CSPLUGIN_EVENTS_PURGE_TIMER_ID     500
 #define _CSPLUGIN_EVENTS_PURGE_TIMER        60
 #define _CSPLUGIN_EVENTS_SYSINFO_TIMER_ID   501
-#define _CSPLUGIN_EVENTS_SYSINFO_TIMER      5
 
 typedef map<int, csEventsSocketClient *> csPluginEventsClientMap;
 typedef map<int, string> csEventsSyslogTextSubIndexMap;
@@ -80,6 +79,8 @@ protected:
 
     void SyslogTextSubstitute(string &dst,
         csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
+
+    void RefreshAlertTypes(void);
 
     string locale;
     csEventsConf *events_conf;

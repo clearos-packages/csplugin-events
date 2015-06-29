@@ -30,6 +30,7 @@
 #include <openssl/sha.h>
 
 #include "events-alert.h"
+#include "events-conf.h"
 #include "events-db.h"
 
 csEventsDb::csEventsDb(csDbType type)
@@ -104,11 +105,37 @@ static int csEventsDb_sqlite_select_alert(
     return 0;
 }
 
+static int csEventsDb_sqlite_select_types(
+    void *param, int argc, char **argv, char **colname)
+{
+    if (argc == 0) return 0;
+
+    unsigned long long id = 0ull;
+    string tag;
+    csAlertIdMap *result = reinterpret_cast<csAlertIdMap *>(param);
+
+    for (int i = 0; i < argc; i++) {
+        csLog::Log(csLog::Debug, "%s = %s", colname[i], argv[i] ? argv[i] : "(null)");
+
+        if (!strcasecmp(colname[i], "id")) {
+            id = strtoull(argv[i], NULL, 0);
+        }
+        else if (!strcasecmp(colname[i], "tag")) {
+            tag = argv[i];
+        }
+    }
+
+    if (id > 0ull) (*result)[id] = tag;
+
+    return 0;
+}
+
 csEventsDb_sqlite::csEventsDb_sqlite(const string &db_filename)
     : csEventsDb(csDBT_SQLITE), handle(NULL),
     insert_alert(NULL), update_alert(NULL), purge_alerts(NULL),
     insert_stamp(NULL), purge_stamps(NULL),
-    last_id(NULL), mark_resolved(NULL), select_by_hash(NULL), db_filename(db_filename)
+    last_id(NULL), mark_resolved(NULL), select_by_hash(NULL),
+    insert_type(NULL), delete_type(NULL), db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
 
@@ -136,7 +163,8 @@ void csEventsDb_sqlite::Open(void)
             __PRETTY_FUNCTION__, db_filename.c_str(), strerror(errno));
         throw csEventsDbException(rc, strerror(rc));
     }
-    if ((rc = chmod(db_filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) < 0) {
+    if ((rc = chmod(db_filename.c_str(),
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) < 0) {
         csLog::Log(csLog::Debug, "%s: chmod(%s): %s",
             __PRETTY_FUNCTION__, db_filename.c_str(), strerror(errno));
         throw csEventsDbException(rc, strerror(rc));
@@ -163,6 +191,10 @@ void csEventsDb_sqlite::Close(void)
         sqlite3_finalize(mark_resolved);
     if (select_by_hash != NULL)
         sqlite3_finalize(select_by_hash);
+    if (insert_type != NULL)
+        sqlite3_finalize(insert_type);
+    if (delete_type != NULL)
+        sqlite3_finalize(delete_type);
 }
 
 void csEventsDb_sqlite::Create(void)
@@ -264,6 +296,26 @@ void csEventsDb_sqlite::Create(void)
     if (rc != SQLITE_OK) {
         csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
             __PRETTY_FUNCTION__, "mark_resolved", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_INSERT_TYPE,
+        strlen(_EVENTS_DB_SQLITE_INSERT_TYPE) + 1,
+        &insert_type, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "insert_type", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_DELETE_TYPE,
+        strlen(_EVENTS_DB_SQLITE_DELETE_TYPE) + 1,
+        &delete_type, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "delete_type", sqlite3_errstr(rc));
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
 }
@@ -698,6 +750,87 @@ void csEventsDb_sqlite::MarkAsResolved(uint32_t type)
         sqlite3_reset(mark_resolved);
         throw;
     }
+}
+
+void csEventsDb_sqlite::InsertType(const string &tag, const string &basename)
+{
+    int rc, index = 0;
+
+    try {
+        // Tag
+        index = sqlite3_bind_parameter_index(insert_type, "@tag");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: tag");
+        if ((rc = sqlite3_bind_text(insert_type, index,
+            tag.c_str(), tag.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        // Basename
+        index = sqlite3_bind_parameter_index(insert_type, "@basename");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: basename");
+        if ((rc = sqlite3_bind_text(insert_type, index,
+            basename.c_str(), basename.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        // Run insert type
+        do {
+            rc = sqlite3_step(insert_type);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(insert_type);
+    }
+    catch (csException &e) {
+        sqlite3_reset(insert_type);
+        throw;
+    }
+}
+
+void csEventsDb_sqlite::DeleteType(const string &tag)
+{
+    int rc, index = 0;
+
+    try {
+        // Tag
+        index = sqlite3_bind_parameter_index(delete_type, "@tag");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: tag");
+        if ((rc = sqlite3_bind_text(delete_type, index,
+            tag.c_str(), tag.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        // Run delete type
+        do {
+            rc = sqlite3_step(delete_type);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(delete_type);
+    }
+    catch (csException &e) {
+        sqlite3_reset(delete_type);
+        throw;
+    }
+}
+
+uint32_t csEventsDb_sqlite::SelectTypes(csAlertIdMap *result)
+{
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_SELECT_TYPES;
+
+    Exec(csEventsDb_sqlite_select_types, (void *)result);
+
+    return (uint32_t)result->size();
 }
 
 void csEventsDb_sqlite::Exec(int (*callback)(void *, int, char**, char **), void *param)

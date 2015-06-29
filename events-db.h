@@ -53,6 +53,11 @@ public:
 
     virtual void MarkAsResolved(uint32_t type) { };
 
+    virtual void InsertType(const string &tag, const string &basename) { }
+    virtual void DeleteType(const string &tag) { }
+
+    virtual uint32_t SelectTypes(map<uint32_t, string> *result) { return 0; }
+
 protected:
     csDbType type;
 };
@@ -78,6 +83,10 @@ public:
 
     void MarkAsResolved(uint32_t type);
 
+    void InsertType(const string &tag, const string &basename);
+    void DeleteType(const string &tag);
+    uint32_t SelectTypes(map<uint32_t, string> *result);
+
 protected:
     void Exec(int (*callback)(void *, int, char **, char **), void *param = NULL);
 
@@ -90,6 +99,8 @@ protected:
     sqlite3_stmt *last_id;
     sqlite3_stmt *mark_resolved;
     sqlite3_stmt *select_by_hash;
+    sqlite3_stmt *insert_type;
+    sqlite3_stmt *delete_type;
 
     string db_filename;
     ostringstream sql;

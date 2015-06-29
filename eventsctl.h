@@ -27,6 +27,8 @@ public:
         CTLM_LIST_TYPES,
         CTLM_LIST_ALERTS,
         CTLM_MARK_RESOLVED,
+        CTLM_TYPE_REGISTER,
+        CTLM_TYPE_DEREGISTER,
     };
 
     csEventsCtl();

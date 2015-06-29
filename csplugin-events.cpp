@@ -214,6 +214,8 @@ void *csPluginEvents::Entry(void)
         events_db->Open();
         if (events_conf->InitDb()) events_db->Drop();
         events_db->Create();
+
+        RefreshAlertTypes();
     }
     catch (csEventsDbException &e) {
         csLog::Log(csLog::Error,
@@ -226,7 +228,7 @@ void *csPluginEvents::Entry(void)
     purge_timer->Start();
 
     csTimer *sysinfo_timer = new csTimer(_CSPLUGIN_EVENTS_SYSINFO_TIMER_ID,
-        _CSPLUGIN_EVENTS_SYSINFO_TIMER, _CSPLUGIN_EVENTS_SYSINFO_TIMER, this
+        events_conf->GetSysinfoRefresh(), events_conf->GetSysinfoRefresh(), this
     );
     sysinfo_timer->Start();
 
@@ -413,6 +415,7 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
 void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
 {
     csEventsAlert alert;
+    string alert_type, alert_basename;
 
     if (client->GetProtoVersion() == 0) {
         client->VersionExchange();
@@ -434,6 +437,16 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
     case csSMOC_ALERT_MARK_AS_RESOLVED:
         client->AlertMarkAsResolved(alert);
         events_db->MarkAsResolved(alert.GetType());
+        break;
+    case csSMOC_TYPE_REGISTER:
+        client->TypeRegister(alert_type, alert_basename);
+        events_db->InsertType(alert_type, alert_basename);
+        RefreshAlertTypes();
+        break;
+    case csSMOC_TYPE_DEREGISTER:
+        client->TypeDeregister(alert_type);
+        events_db->DeleteType(alert_type);
+        RefreshAlertTypes();
         break;
     default:
         csLog::Log(csLog::Warning,
@@ -603,6 +616,13 @@ void csPluginEvents::SyslogTextSubstitute(string &dst,
         while ((pos = dst.find(i->second)) != string::npos)
             dst.replace(pos, i->second.length(), rx->GetMatch(i->first));
     }
+}
+
+void csPluginEvents::RefreshAlertTypes()
+{
+    csAlertIdMap alert_types;
+    events_db->SelectTypes(&alert_types);
+    events_conf->MergeRegisteredAlertTypes(alert_types);
 }
 
 csPluginInit(csPluginEvents);

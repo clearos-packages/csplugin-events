@@ -221,9 +221,11 @@ void csEventsConf::Reload(void)
 
 void csPluginXmlParser::ParseElementOpen(csXmlTag *tag)
 {
+#if 0
     csEventsConf *_conf = static_cast<csEventsConf *>(conf);
 
     csLog::Log(csLog::Debug, "%s: %s", __PRETTY_FUNCTION__, tag->GetName().c_str());
+#endif
 }
 
 void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
@@ -290,10 +292,11 @@ void csPluginXmlParser::ParseElementClose(csXmlTag *tag)
                 ParseError("socket parameter missing");
             _conf->syslog_socket_path = tag->GetParamValue("socket");
         }
-        else if (tag->GetParamValue("type") == "syswatch") {
-            if (!tag->ParamExists("state"))
-                ParseError("state parameter missing");
-            _conf->syswatch_state_path = tag->GetParamValue("state");
+        else if (tag->GetParamValue("type") == "sysinfo") {
+            if (!tag->ParamExists("refresh"))
+                ParseError("refresh parameter missing");
+            time_t refresh = (time_t)(atoi(tag->GetParamValue("refresh").c_str()));
+            if (refresh > 0) _conf->sysinfo_refresh = refresh;
         }
         else ParseError("invalid type parameter");
     }
@@ -562,7 +565,7 @@ csEventsConf::csEventsConf(csPluginEvents *parent,
         events_socket_path(_EVENTS_CONF_EVENTS_SOCKET),
         sqlite_db_filename(_EVENTS_CONF_SQLITE_DB),
         syslog_socket_path(_EVENTS_CONF_SYSLOG_SOCKET),
-        syswatch_state_path(_EVENTS_CONF_SYSWATCH_STATE)
+        sysinfo_refresh(_EVENTS_CONF_SYSINFO_REFRESH)
 {
     alerts_parser = new csAlertsXmlParser();
     alerts_parser->SetConf(this);
@@ -618,6 +621,33 @@ void csEventsConf::GetAlertTypes(csAlertIdMap &types)
     csAlertIdMap::const_iterator i;
     for (i = alert_types.begin(); i != alert_types.end(); i++)
         types[i->first] = i->second;
+}
+
+void csEventsConf::MergeRegisteredAlertTypes(csAlertIdMap &types)
+{
+    uint32_t registered_base = 0;
+    try {
+        registered_base = GetAlertId("REGISTERED_BASE");
+    } catch (csException &e) { }
+
+    if (registered_base == 0)
+        throw csException(EINVAL, "REGISTERED_BASE not defined");
+
+    csAlertIdMap::iterator i = alert_types.find(registered_base);
+    if (i == alert_types.end())
+        throw csException(EINVAL, "REGISTERED_BASE not found");
+    if (++i == alert_types.end())
+        csLog::Log(csLog::Debug, "No registered alert types to remove.");
+    else
+        alert_types.erase(i, alert_types.end());
+
+    if (types.size() == 0) return;
+
+    for (i = types.begin(); i != types.end(); i++) {
+        alert_types.insert(
+            pair<uint32_t, string>(i->first + registered_base, i->second)
+        );
+    }
 }
 
 void csEventsConf::GetAlertSourceConfigs(csAlertSourceConfigVector &configs)

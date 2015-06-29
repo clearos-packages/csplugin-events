@@ -29,8 +29,8 @@ enum csEventsOpCode {
     csSMOC_ALERT_SELECT,
     csSMOC_ALERT_MARK_AS_RESOLVED,
     csSMOC_ALERT_RECORD,
-    csSMOC_ALERT_REGISTER_TYPE,
-    csSMOC_ALERT_UNREGISTER_TYPE,
+    csSMOC_TYPE_REGISTER,
+    csSMOC_TYPE_DEREGISTER,
 
     csSMOC_RESULT = 0xFF,
 };
@@ -127,6 +127,9 @@ public:
     uint32_t AlertSelect(const string &where, vector<csEventsAlert *> &result);
     void AlertSelect(csEventsDb *db);
     void AlertMarkAsResolved(csEventsAlert &alert);
+
+    void TypeRegister(string &tag, string &basename);
+    void TypeDeregister(string &tag);
 
     csEventsProtoResult ReadResult(void);
     void WriteResult(csEventsProtoResult result,

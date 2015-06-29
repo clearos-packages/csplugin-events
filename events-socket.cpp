@@ -382,6 +382,30 @@ void csEventsSocket::AlertMarkAsResolved(csEventsAlert &alert)
     }
 }
 
+void csEventsSocket::TypeRegister(string &tag, string &basename)
+{
+    if (mode == csSM_CLIENT) {
+        ResetPacket();
+        WritePacketVar(tag);
+        WritePacketVar(basename);
+        WritePacket(csSMOC_TYPE_REGISTER);
+    } else if (mode == csSM_SERVER) {
+        ReadPacketVar(tag);
+        ReadPacketVar(basename);
+    }
+}
+
+void csEventsSocket::TypeDeregister(string &tag)
+{
+    if (mode == csSM_CLIENT) {
+        ResetPacket();
+        WritePacketVar(tag);
+        WritePacket(csSMOC_TYPE_DEREGISTER);
+    } else if (mode == csSM_SERVER) {
+        ReadPacketVar(tag);
+    }
+}
+
 csEventsProtoResult csEventsSocket::ReadResult(void)
 {
     ReadPacket();

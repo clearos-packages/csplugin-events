@@ -22,6 +22,8 @@
 
 #include <iostream>
 #include <sstream>
+#include <locale>
+#include <algorithm>
 
 #include <unistd.h>
 #include <getopt.h>
@@ -74,15 +76,11 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "    Enable debugging messages and remain in the foreground.");
 
-        csLog::Log(csLog::Info, "\nSend an alert:");
+        csLog::Log(csLog::Info, "\nSend an alert:\n  # eventsctl -s <options> <description text>\n");
         csLog::Log(csLog::Info,
             "  -s, --send");
         csLog::Log(csLog::Info,
             "    Send an alert.");
-        csLog::Log(csLog::Info,
-            "  -p, --persistent");
-        csLog::Log(csLog::Info,
-            "    Enable persistent flag.");
         csLog::Log(csLog::Info,
             "  -t <type>, --type <type>");
         csLog::Log(csLog::Info,
@@ -121,6 +119,24 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info, "\nList all alerts:");
         csLog::Log(csLog::Info,
             "  -l, --list");
+
+        csLog::Log(csLog::Info, "\nCustom type registration:");
+        csLog::Log(csLog::Info,
+            "  -R, --register");
+        csLog::Log(csLog::Info,
+            "    Register a custom alert type.");
+        csLog::Log(csLog::Info,
+            "  -D, --deregister");
+        csLog::Log(csLog::Info,
+            "    De-register a custom alert type.");
+        csLog::Log(csLog::Info,
+            "  -t <type>, --type <type>");
+        csLog::Log(csLog::Info,
+            "    Specify a custom alert type to register/de-register.");
+        csLog::Log(csLog::Info,
+            "  -b <basename>, --basename <basename>");
+        csLog::Log(csLog::Info,
+            "    Specify a custom alert type basename.");
     }
     exit(rc);
 }
@@ -155,6 +171,9 @@ int main(int argc, char *argv[])
         { "mark-resolved", 0, 0, 'r' },
         // List alerts
         { "list", 0, 0, 'L' },
+        // Register/unregister type
+        { "register", 0, 0, 'R' },
+        { "unregister", 0, 0, 'U' },
 
         { NULL, 0, 0, 0 }
     };
@@ -167,7 +186,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?st:u:U:b:o:rl:L", options, &o)) == -1) break;
+            "Vc:dh?st:u:U:b:o:rl:LRD", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);
@@ -232,6 +251,12 @@ int main(int argc, char *argv[])
         case 'L':
             mode = csEventsCtl::CTLM_LIST_ALERTS;
             break;
+        case 'R':
+            mode = csEventsCtl::CTLM_TYPE_REGISTER;
+            break;
+        case 'D':
+            mode = csEventsCtl::CTLM_TYPE_DEREGISTER;
+            break;
         }
     }
 
@@ -249,6 +274,34 @@ int main(int argc, char *argv[])
             csLog::Log(csLog::Error, "Alert type to mark as resolved is required.");
             exit(1);
         }
+    }
+    else if (mode == csEventsCtl::CTLM_TYPE_REGISTER) {
+        if (alert_type.length() == 0) {
+            csLog::Log(csLog::Error, "Alert type to register is required.");
+            exit(1);
+        }
+        if (alert_basename.length() == 0) {
+            csLog::Log(csLog::Error, "Alert basename to register is required.");
+            exit(1);
+        }
+    }
+    else if (mode == csEventsCtl::CTLM_TYPE_DEREGISTER) {
+        if (alert_type.length() == 0) {
+            csLog::Log(csLog::Error, "Alert type to de-register is required.");
+            exit(1);
+        }
+    }
+
+    if (mode == csEventsCtl::CTLM_TYPE_REGISTER || csEventsCtl::CTLM_TYPE_DEREGISTER) {
+        locale lang;
+        for (string::iterator i = alert_type.begin(); i != alert_type.end(); i++) {
+            if (!isalpha(*i, lang) && (*i) != '_') {
+                csLog::Log(csLog::Error, "Illegal character in alert type; valid characters: A-Z and '_'");
+                exit(1);
+            }
+        }
+
+        transform(alert_type.begin(), alert_type.end(), alert_type.begin(), ::toupper);
     }
 
     rc = events_ctl.Exec(
@@ -286,13 +339,22 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
 {
     csEventsAlert alert;
     csAlertIdMap alert_types;
+    csEventsDb_sqlite *events_db;
     vector<csEventsAlert *> result;
     char alert_flags[4];
     struct tm tm_local;
     char date_time[_CS_MAX_TIMESTAMP];
-    string alert_type_name, alert_prio;
+    string alert_type_name, alert_basename, alert_prio;
 
-    if (mode == CTLM_SEND || mode == CTLM_MARK_RESOLVED || mode == CTLM_LIST_ALERTS) {
+    events_db = new csEventsDb_sqlite(events_conf->GetSqliteDbFilename());
+    events_db->Open();
+    if (events_conf->InitDb()) events_db->Drop();
+    events_db->Create();
+    events_db->SelectTypes(&alert_types);
+    events_conf->MergeRegisteredAlertTypes(alert_types);
+
+    if (mode == CTLM_SEND || mode == CTLM_MARK_RESOLVED || mode == CTLM_LIST_ALERTS ||
+        mode == CTLM_TYPE_REGISTER || mode == CTLM_TYPE_DEREGISTER) {
         events_socket = new csEventsSocketClient(events_conf->GetEventsSocketPath());
         events_socket->Connect();
 
@@ -393,6 +455,17 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
             }
             break;
             
+        case CTLM_TYPE_REGISTER:
+            alert_type_name = type;
+            alert_basename = basename;
+            events_socket->TypeRegister(alert_type_name, alert_basename);
+            break;
+
+        case CTLM_TYPE_DEREGISTER:
+            alert_type_name = type;
+            events_socket->TypeDeregister(alert_type_name);
+            break;
+
         default:
             csLog::Log(csLog::Error, "Invalid mode or no mode specified.");
             csLog::Log(csLog::Info, "Try --help for usage information.");
