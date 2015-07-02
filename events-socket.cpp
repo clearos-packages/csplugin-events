@@ -406,6 +406,30 @@ void csEventsSocket::TypeDeregister(string &tag)
     }
 }
 
+void csEventsSocket::OverrideSet(uint32_t &type, uint32_t &flags)
+{
+    if (mode == csSM_CLIENT) {
+        ResetPacket();
+        WritePacketVar((const void *)&type, sizeof(uint32_t));
+        WritePacketVar((const void *)&flags, sizeof(uint32_t));
+        WritePacket(csSMOC_OVERRIDE_SET);
+    } else if (mode == csSM_SERVER) {
+        ReadPacketVar((void *)&type, sizeof(uint32_t));
+        ReadPacketVar((void *)&flags, sizeof(uint32_t));
+    }
+}
+
+void csEventsSocket::OverrideClear(uint32_t &type)
+{
+    if (mode == csSM_CLIENT) {
+        ResetPacket();
+        WritePacketVar((const void *)&type, sizeof(uint32_t));
+        WritePacket(csSMOC_OVERRIDE_CLEAR);
+    } else if (mode == csSM_SERVER) {
+        ReadPacketVar((void *)&type, sizeof(uint32_t));
+    }
+}
+
 csEventsProtoResult csEventsSocket::ReadResult(void)
 {
     ReadPacket();

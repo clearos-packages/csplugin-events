@@ -53,6 +53,8 @@ typedef struct
 
 typedef map<csEventsAlertSourceConfig_sysinfo::csEventsAlertSource_sysinfo_key, vector<csEventsSysinfoConfig *> > csEventsSysinfoConfigMap;
 
+typedef map<uint32_t, uint32_t> csEventsLevelOverrideMap;
+
 class csPluginEvents : public csPlugin
 {
 public:
@@ -81,6 +83,9 @@ protected:
         csRegEx *rx, csAlertSourceConfig_syslog_pattern *rx_config);
 
     void RefreshAlertTypes(void);
+    void RefreshLevelOverrides(void);
+
+    void InsertAlert(csEventsAlert &alert);
 
     string locale;
     csEventsConf *events_conf;
@@ -91,6 +96,7 @@ protected:
     csEventsSyslogRegExVector events_syslog_rx;
     csEventsSysinfoConfigMap events_sysinfo;
     vector<string> events_sysinfo_keys;
+    csEventsLevelOverrideMap overrides;
 };
 
 #endif // _CSPLUGIN_EVENTS_H

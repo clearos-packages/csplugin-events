@@ -57,6 +57,12 @@ public:
     virtual void DeleteType(const string &tag) { }
     virtual uint32_t SelectTypes(map<uint32_t, string> *result) { return 0; }
 
+    virtual uint32_t SelectOverride(uint32_t type) { }
+    virtual uint32_t SelectOverrides(map<uint32_t, uint32_t> *result) { return 0; }
+    virtual void InsertOverride(uint32_t type, uint32_t level) { }
+    virtual void UpdateOverride(uint32_t type, uint32_t level) { }
+    virtual void DeleteOverride(uint32_t type) { }
+
 protected:
     csDbType type;
 };
@@ -77,7 +83,6 @@ public:
 
     uint32_t SelectAlert(const string &where, vector<csEventsAlert *> *result);
     void InsertAlert(csEventsAlert &alert);
-    void UpdateAlert(const csEventsAlert &alert);
     void PurgeAlerts(const csEventsAlert &alert, time_t age);
 
     void MarkAsResolved(uint32_t type);
@@ -85,6 +90,12 @@ public:
     void InsertType(const string &tag, const string &basename);
     void DeleteType(const string &tag);
     uint32_t SelectTypes(map<uint32_t, string> *result);
+
+    uint32_t SelectOverride(uint32_t type);
+    uint32_t SelectOverrides(map<uint32_t, uint32_t> *result);
+    void InsertOverride(uint32_t type, uint32_t level);
+    void UpdateOverride(uint32_t type, uint32_t level);
+    void DeleteOverride(uint32_t type);
 
 protected:
     void Exec(int (*callback)(void *, int, char **, char **), void *param = NULL);
@@ -100,6 +111,10 @@ protected:
     sqlite3_stmt *select_by_hash;
     sqlite3_stmt *insert_type;
     sqlite3_stmt *delete_type;
+    sqlite3_stmt *select_override;
+    sqlite3_stmt *insert_override;
+    sqlite3_stmt *update_override;
+    sqlite3_stmt *delete_override;
 
     string db_filename;
     ostringstream sql;

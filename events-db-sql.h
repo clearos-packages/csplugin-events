@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS types( \
     basename TEXT NOT NULL \
 );"
 
+#define _EVENTS_DB_SQLITE_CREATE_OVERRIDES "\
+CREATE TABLE IF NOT EXISTS overrides( \
+    id INTEGER PRIMARY KEY AUTOINCREMENT, \
+    type INTEGER NOT NULL, \
+    level INTEGER NOT NULL \
+);"
+
 // Select SQL defines
 
 #define _EVENTS_DB_SQLITE_SELECT_ALERT "\
@@ -102,6 +109,17 @@ WHERE name = @table_name \
 #define _EVENTS_DB_SQLITE_SELECT_TYPES "\
 SELECT id, tag \
 FROM types \
+;"
+
+#define _EVENTS_DB_SQLITE_SELECT_OVERRIDE "\
+SELECT type, level \
+FROM overrides \
+WHERE type = @type \
+;"
+
+#define _EVENTS_DB_SQLITE_SELECT_OVERRIDES "\
+SELECT type, level \
+FROM overrides \
 ;"
 
 // Insert SQL defines
@@ -152,6 +170,16 @@ VALUES ( \
     @basename \
 );"
 
+#define _EVENTS_DB_SQLITE_INSERT_OVERRIDE "\
+INSERT INTO overrides ( \
+    type, \
+    level \
+) \
+VALUES ( \
+    @type, \
+    @level \
+);"
+
 // Update SQL defines
 
 #define _EVENTS_DB_SQLITE_UPDATE_ALERT "\
@@ -163,6 +191,12 @@ WHERE id = @id \
 #define _EVENTS_DB_SQLITE_MARK_RESOLVED "\
 UPDATE alerts \
 SET flags = flags | @csAF_FLG_RESOLVED \
+WHERE type = @type \
+;"
+
+#define _EVENTS_DB_SQLITE_UPDATE_OVERRIDE "\
+UPDATE overrides \
+SET level = @level \
 WHERE type = @type \
 ;"
 
@@ -182,6 +216,11 @@ WHERE stamp < @max_age \
 #define _EVENTS_DB_SQLITE_DELETE_TYPE "\
 DELETE FROM types \
 WHERE tag = @tag \
+;"
+
+#define _EVENTS_DB_SQLITE_DELETE_OVERRIDE "\
+DELETE FROM overrides \
+WHERE type = @type \
 ;"
 
 #endif // _EVENTS_DB_SQL_H

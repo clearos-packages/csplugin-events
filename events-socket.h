@@ -31,6 +31,8 @@ enum csEventsOpCode {
     csSMOC_ALERT_RECORD,
     csSMOC_TYPE_REGISTER,
     csSMOC_TYPE_DEREGISTER,
+    csSMOC_OVERRIDE_SET,
+    csSMOC_OVERRIDE_CLEAR,
 
     csSMOC_RESULT = 0xFF,
 };
@@ -130,6 +132,9 @@ public:
 
     void TypeRegister(string &tag, string &basename);
     void TypeDeregister(string &tag);
+
+    void OverrideSet(uint32_t &type, uint32_t &flags);
+    void OverrideClear(uint32_t &type);
 
     csEventsProtoResult ReadResult(void);
     void WriteResult(csEventsProtoResult result,

@@ -84,7 +84,7 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "  -t <type>, --type <type>");
         csLog::Log(csLog::Info,
-            "    Specify an alert type.  Try \"list\" to show available types.");
+            "    Specify an alert type.  Specify \"list\" to show registered types.");
         csLog::Log(csLog::Info,
             "  -l <level>, --level <level>");
         csLog::Log(csLog::Info,
@@ -115,6 +115,8 @@ static void usage(int rc = 0, bool version = false)
             "  -r, --mark-resolved");
         csLog::Log(csLog::Info,
             "  -t <type>, --type <type>");
+        csLog::Log(csLog::Info,
+            "    Specify an alert type to resolve.");
 
         csLog::Log(csLog::Info, "\nList all alerts:");
         csLog::Log(csLog::Info,
@@ -136,7 +138,27 @@ static void usage(int rc = 0, bool version = false)
         csLog::Log(csLog::Info,
             "  -b <basename>, --basename <basename>");
         csLog::Log(csLog::Info,
-            "    Specify a custom alert type basename.");
+            "    Specify a custom alert type basename (registration mode only).");
+
+        csLog::Log(csLog::Info, "\nSet alert level override:");
+        csLog::Log(csLog::Info,
+            "  -S, --set-override");
+        csLog::Log(csLog::Info,
+            "  -t <type>, --type <type>");
+        csLog::Log(csLog::Info,
+            "    Specify an alert type override to set.");
+        csLog::Log(csLog::Info,
+            "  -l <level>, --level <level>");
+        csLog::Log(csLog::Info,
+            "    Specify an alert level override; NORMal, WARNing, CRITical, or IGNORE.");
+
+        csLog::Log(csLog::Info, "\nClear alert level override:");
+        csLog::Log(csLog::Info,
+            "  -S, --set-override");
+        csLog::Log(csLog::Info,
+            "  -t <type>, --type <type>");
+        csLog::Log(csLog::Info,
+            "    Specify an alert type override to clear.");
     }
     exit(rc);
 }
@@ -146,7 +168,7 @@ int main(int argc, char *argv[])
     int rc;
 
     int64_t alert_id = 0;
-    uint32_t alert_flags = csEventsAlert::csAF_LVL_NORM;
+    uint32_t alert_flags = csEventsAlert::csAF_NULL;
     string alert_type, alert_user, alert_origin, alert_basename, alert_uuid;
     ostringstream alert_desc;
 
@@ -174,6 +196,10 @@ int main(int argc, char *argv[])
         // Register/deregister type
         { "register", 0, 0, 'R' },
         { "deregister", 0, 0, 'D' },
+        // Set alert flags override
+        { "set-override", 0, 0, 'S' },
+        // Clear alert flags override
+        { "clear-override", 0, 0, 'C' },
 
         { NULL, 0, 0, 0 }
     };
@@ -186,7 +212,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?st:u:U:b:o:rl:LRD", options, &o)) == -1) break;
+            "Vc:dh?st:u:U:b:o:rl:LRDSC", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);
@@ -228,18 +254,14 @@ int main(int argc, char *argv[])
             alert_flags |= csEventsAlert::csAF_FLG_AUTO_RESOLVE;
             break;
         case 'l':
-            if (strncasecmp("NORM", optarg, 4) == 0) {
-                alert_flags &= ~(csEventsAlert::csAF_LVL_WARN | csEventsAlert::csAF_LVL_CRIT);
+            if (strncasecmp("NORM", optarg, 4) == 0)
                 alert_flags |= csEventsAlert::csAF_LVL_NORM;
-            }
-            else if (strncasecmp("WARN", optarg, 4) == 0) {
-                alert_flags &= ~(csEventsAlert::csAF_LVL_NORM | csEventsAlert::csAF_LVL_CRIT);
+            else if (strncasecmp("WARN", optarg, 4) == 0)
                 alert_flags |= csEventsAlert::csAF_LVL_WARN;
-            }
-            else if (strncasecmp("CRIT", optarg, 4) == 0) {
-                alert_flags &= ~(csEventsAlert::csAF_LVL_NORM | csEventsAlert::csAF_LVL_WARN);
+            else if (strncasecmp("CRIT", optarg, 4) == 0)
                 alert_flags |= csEventsAlert::csAF_LVL_CRIT;
-            }
+            else if (strncasecmp("IGNORE", optarg, 4) == 0) 
+                alert_flags |= csEventsAlert::csAF_FLG_IGNORE;
             else {
                 csLog::Log(csLog::Error, "Invalid alert level specified.");
                 exit(1);
@@ -257,6 +279,12 @@ int main(int argc, char *argv[])
         case 'D':
             mode = csEventsCtl::CTLM_TYPE_DEREGISTER;
             break;
+        case 'S':
+            mode = csEventsCtl::CTLM_OVERRIDE_SET;
+            break;
+        case 'C':
+            mode = csEventsCtl::CTLM_OVERRIDE_CLEAR;
+            break;
         }
     }
 
@@ -268,6 +296,8 @@ int main(int argc, char *argv[])
     if (mode == csEventsCtl::CTLM_SEND) {
         if (argc > optind) alert_desc << argv[optind];
         for (int i = optind + 1; i < argc; i++) alert_desc << " " << argv[i];
+        if (alert_flags == csEventsAlert::csAF_NULL)
+            alert_flags |= csEventsAlert::csAF_LVL_NORM;
     }
     else if (mode == csEventsCtl::CTLM_MARK_RESOLVED) {
         if (alert_type.length() == 0) {
@@ -291,17 +321,41 @@ int main(int argc, char *argv[])
             exit(1);
         }
     }
+    else if (mode == csEventsCtl::CTLM_OVERRIDE_SET) {
+        if (alert_type.length() == 0) {
+            csLog::Log(csLog::Error, "Alert type to set override for is required.");
+            exit(1);
+        }
+        if (alert_flags == csEventsAlert::csAF_NULL) {
+            csLog::Log(csLog::Error, "Alert flags to set override for is required.");
+            exit(1);
+        }
+    }
+    else if (mode == csEventsCtl::CTLM_OVERRIDE_CLEAR) {
+        if (alert_type.length() == 0) {
+            csLog::Log(csLog::Error, "Alert type to clear override for is required.");
+            exit(1);
+        }
+    }
 
-    if (mode == csEventsCtl::CTLM_TYPE_REGISTER || csEventsCtl::CTLM_TYPE_DEREGISTER) {
+    if (mode == csEventsCtl::CTLM_SEND ||
+        mode == csEventsCtl::CTLM_TYPE_REGISTER ||
+        mode == csEventsCtl::CTLM_TYPE_DEREGISTER ||
+        mode == csEventsCtl::CTLM_OVERRIDE_SET ||
+        mode == csEventsCtl::CTLM_OVERRIDE_CLEAR) {
+
         locale lang;
         for (string::iterator i = alert_type.begin(); i != alert_type.end(); i++) {
             if (!isalpha(*i, lang) && (*i) != '_') {
-                csLog::Log(csLog::Error, "Illegal character in alert type; valid characters: A-Z and '_'");
+                csLog::Log(csLog::Error,
+                    "Illegal character in alert type; valid characters: A-Z and '_'");
                 exit(1);
             }
         }
 
-        transform(alert_type.begin(), alert_type.end(), alert_type.begin(), ::toupper);
+        transform(
+            alert_type.begin(), alert_type.end(), alert_type.begin(),
+            ::toupper);
     }
 
     rc = events_ctl.Exec(
@@ -341,10 +395,11 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
     csAlertIdMap alert_types;
     csEventsDb_sqlite *events_db;
     vector<csEventsAlert *> result;
-    char alert_flags[4];
+    char alert_flags[5];
     struct tm tm_local;
     char date_time[_CS_MAX_TIMESTAMP];
     string alert_type_name, alert_basename, alert_prio;
+    uint32_t type_id = 0;
 
     events_db = new csEventsDb_sqlite(events_conf->GetSqliteDbFilename());
     events_db->Open();
@@ -354,7 +409,9 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
     events_conf->MergeRegisteredAlertTypes(alert_types);
 
     if (mode == CTLM_SEND || mode == CTLM_MARK_RESOLVED || mode == CTLM_LIST_ALERTS ||
-        mode == CTLM_TYPE_REGISTER || mode == CTLM_TYPE_DEREGISTER) {
+        mode == CTLM_TYPE_REGISTER || mode == CTLM_TYPE_DEREGISTER ||
+        mode == CTLM_OVERRIDE_SET || mode == CTLM_OVERRIDE_CLEAR) {
+
         events_socket = new csEventsSocketClient(events_conf->GetEventsSocketPath());
         events_socket->Connect();
 
@@ -397,8 +454,10 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
         case CTLM_LIST_TYPES:
             csLog::Log(csLog::Info, "Alert Types:");
             events_conf->GetAlertTypes(alert_types);
-            for (csAlertIdMap::iterator i = alert_types.begin(); i != alert_types.end(); i++)
+            for (csAlertIdMap::iterator i = alert_types.begin();
+                i != alert_types.end(); i++) {
                 csLog::Log(csLog::Info, "  %s", i->second.c_str());
+            }
             break;
 
         case CTLM_LIST_ALERTS:
@@ -444,7 +503,9 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
                     csEventsAlert::csAF_FLG_RESOLVED) ? 'r' : '-';
                 alert_flags[2] = ((*i)->GetFlags() &
                     csEventsAlert::csAF_FLG_AUTO_RESOLVE) ? 'a' : '-';
-                alert_flags[3] = '\0';
+                alert_flags[3] = ((*i)->GetFlags() &
+                    csEventsAlert::csAF_FLG_IGNORE) ? 'i' : '-';
+                alert_flags[4] = '\0';
 
                 csLog::Log(csLog::Info, "#%-10llu%-30s%s%s[%s] %s",
                     (*i)->GetId(), date_time, alert_prio.c_str(),
@@ -464,6 +525,23 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
         case CTLM_TYPE_DEREGISTER:
             alert_type_name = type;
             events_socket->TypeDeregister(alert_type_name);
+            break;
+
+        case CTLM_OVERRIDE_SET:
+        case CTLM_OVERRIDE_CLEAR:
+            try {
+                type_id = events_conf->GetAlertId(type);
+            } catch (csException &e) {
+                csLog::Log(csLog::Error, "Unknown alert type: %s",
+                    type.c_str());
+                exit(1);
+            }
+
+            if (mode == CTLM_OVERRIDE_SET)
+                events_socket->OverrideSet(type_id, flags);
+            else if (mode == CTLM_OVERRIDE_CLEAR)
+                events_socket->OverrideClear(type_id);
+
             break;
 
         default:

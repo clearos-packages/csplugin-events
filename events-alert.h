@@ -52,6 +52,9 @@ public:
         // Alert will resolve itself (closed-loop).
         csAF_FLG_AUTO_RESOLVE   = 0x00000400,
 
+        // Override: Ignore/skip alert.
+        csAF_FLG_IGNORE         = 0x80000000,
+
         csAF_MAX                = 0xffffffff,
     };
 

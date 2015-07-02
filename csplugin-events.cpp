@@ -216,6 +216,7 @@ void *csPluginEvents::Entry(void)
         events_db->Create();
 
         RefreshAlertTypes();
+        RefreshLevelOverrides();
     }
     catch (csEventsDbException &e) {
         csLog::Log(csLog::Error,
@@ -336,7 +337,8 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
                     alert.SetUser();
                     alert.SetOrigin("internal-syslog");
                     alert.SetBasename("csplugin-events");
-                    events_db->InsertAlert(alert);
+
+                    InsertAlert(alert);
 
                     break;
                 }
@@ -416,6 +418,7 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
 {
     csEventsAlert alert;
     string alert_type, alert_basename;
+    uint32_t type = 0, flags = csEventsAlert::csAF_NULL;
 
     if (client->GetProtoVersion() == 0) {
         client->VersionExchange();
@@ -429,7 +432,7 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
     switch (client->ReadPacket()) {
     case csSMOC_ALERT_INSERT:
         client->AlertInsert(alert);
-        events_db->InsertAlert(alert);
+        InsertAlert(alert);
         break;
     case csSMOC_ALERT_SELECT:
         client->AlertSelect(events_db);
@@ -440,14 +443,37 @@ void csPluginEvents::ProcessClientRequest(csEventsSocketClient *client)
         break;
     case csSMOC_TYPE_REGISTER:
         client->TypeRegister(alert_type, alert_basename);
+        csLog::Log(csLog::Debug, "%s: Register custom type: %s (%s)",
+            name.c_str(), alert_type.c_str(), alert_basename.c_str());
         events_db->InsertType(alert_type, alert_basename);
         RefreshAlertTypes();
         break;
     case csSMOC_TYPE_DEREGISTER:
         client->TypeDeregister(alert_type);
+        csLog::Log(csLog::Debug, "%s: De-register custom type: %s",
+            name.c_str(), alert_type.c_str());
         events_db->DeleteType(alert_type);
         RefreshAlertTypes();
         break;
+    case csSMOC_OVERRIDE_SET:
+        client->OverrideSet(type, flags);
+        csLog::Log(csLog::Debug, "%s: Set alert level override: %u: 0x%08x",
+            name.c_str(), type, flags);
+        if (events_db->SelectOverride(type) == csEventsAlert::csAF_NULL)
+            events_db->InsertOverride(type, flags);
+        else
+            events_db->UpdateOverride(type, flags);
+        RefreshLevelOverrides();
+        break;
+
+    case csSMOC_OVERRIDE_CLEAR:
+        client->OverrideClear(type);
+        csLog::Log(csLog::Debug, "%s: Clear alert level override: %u",
+            name.c_str(), type);
+        events_db->DeleteOverride(type);
+        RefreshLevelOverrides();
+        break;
+
     default:
         csLog::Log(csLog::Warning,
             "%s: Unhandled op-code: %02x", name.c_str(), client->GetOpCode());
@@ -587,7 +613,7 @@ void csPluginEvents::ProcessSysinfoThreshold(
             if (key == csEventsAlertSourceConfig_sysinfo::csSIK_VOL_USAGE)
                 alert.SetUUID(config->path);
 
-            events_db->InsertAlert(alert);
+            InsertAlert(alert);
         }
     }
     else if (config->trigger_start_time > 0) {
@@ -618,11 +644,47 @@ void csPluginEvents::SyslogTextSubstitute(string &dst,
     }
 }
 
-void csPluginEvents::RefreshAlertTypes()
+void csPluginEvents::RefreshAlertTypes(void)
 {
     csAlertIdMap alert_types;
     events_db->SelectTypes(&alert_types);
     events_conf->MergeRegisteredAlertTypes(alert_types);
+}
+
+void csPluginEvents::RefreshLevelOverrides(void)
+{
+    overrides.clear();
+    events_db->SelectOverrides(&overrides);
+
+    csLog::Log(csLog::Debug, "%s: Level overrides:", name.c_str());
+    for (csEventsLevelOverrideMap::iterator i = overrides.begin();
+        i != overrides.end(); i++) {
+        csLog::Log(csLog::Debug, "  %u: 0x%08x", i->first, i->second);
+    }
+}
+
+void csPluginEvents::InsertAlert(csEventsAlert &alert)
+{
+    csEventsLevelOverrideMap::iterator i = overrides.find(alert.GetType());
+
+    if (i != overrides.end()) {
+        if (i->second == csEventsAlert::csAF_FLG_IGNORE) {
+            csLog::Log(csLog::Debug, "%s: Level override ignore: %u",
+                name.c_str(), i->first);
+            return;
+        }
+
+        uint32_t flags = alert.GetFlags();
+        flags &= ~(
+            csEventsAlert::csAF_LVL_NORM |
+            csEventsAlert::csAF_LVL_WARN |
+            csEventsAlert::csAF_LVL_CRIT
+        );
+        flags |= i->second;
+        alert.SetFlags(flags);
+    }
+
+    events_db->InsertAlert(alert);
 }
 
 csPluginInit(csPluginEvents);

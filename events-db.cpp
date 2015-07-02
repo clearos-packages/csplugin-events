@@ -130,12 +130,36 @@ static int csEventsDb_sqlite_select_types(
     return 0;
 }
 
+static int csEventsDb_sqlite_select_overrides(
+    void *param, int argc, char **argv, char **colname)
+{
+    if (argc == 0) return 0;
+
+    uint32_t type = 0, level = csEventsAlert::csAF_NULL;
+    map<uint32_t, uint32_t> *result = reinterpret_cast<map<uint32_t, uint32_t> *>(param);
+
+    for (int i = 0; i < argc; i++) {
+        csLog::Log(csLog::Debug, "%s = %s", colname[i], argv[i] ? argv[i] : "(null)");
+
+        if (!strcasecmp(colname[i], "type"))
+            type = (uint32_t)atoi(argv[i]);
+        else if (!strcasecmp(colname[i], "level"))
+            level = (uint32_t)atoi(argv[i]);
+    }
+
+    if (type > 0 && level != csEventsAlert::csAF_NULL) (*result)[type] = level;
+
+    return 0;
+}
+
 csEventsDb_sqlite::csEventsDb_sqlite(const string &db_filename)
     : csEventsDb(csDBT_SQLITE), handle(NULL),
     insert_alert(NULL), update_alert(NULL), purge_alerts(NULL),
     insert_stamp(NULL), purge_stamps(NULL),
     last_id(NULL), mark_resolved(NULL), select_by_hash(NULL),
-    insert_type(NULL), delete_type(NULL), db_filename(db_filename)
+    insert_type(NULL), delete_type(NULL), select_override(NULL),
+    insert_override(NULL), update_override(NULL), delete_override(NULL),
+    db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
 
@@ -195,6 +219,14 @@ void csEventsDb_sqlite::Close(void)
         sqlite3_finalize(insert_type);
     if (delete_type != NULL)
         sqlite3_finalize(delete_type);
+    if (select_override != NULL)
+        sqlite3_finalize(select_override);
+    if (insert_override != NULL)
+        sqlite3_finalize(insert_override);
+    if (update_override != NULL)
+        sqlite3_finalize(update_override);
+    if (delete_override != NULL)
+        sqlite3_finalize(delete_override);
 }
 
 void csEventsDb_sqlite::Create(void)
@@ -216,6 +248,10 @@ void csEventsDb_sqlite::Create(void)
     // Create types
     sql.str("");
     sql << _EVENTS_DB_SQLITE_CREATE_TYPES;
+    Exec(csEventsDb_sqlite_exec);
+    // Create level overrides
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_CREATE_OVERRIDES;
     Exec(csEventsDb_sqlite_exec);
 
     // Prepare statements
@@ -318,22 +354,62 @@ void csEventsDb_sqlite::Create(void)
             __PRETTY_FUNCTION__, "delete_type", sqlite3_errstr(rc));
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_SELECT_OVERRIDE,
+        strlen(_EVENTS_DB_SQLITE_SELECT_OVERRIDE) + 1,
+        &select_override, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "select_override", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_INSERT_OVERRIDE,
+        strlen(_EVENTS_DB_SQLITE_INSERT_OVERRIDE) + 1,
+        &insert_override, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "insert_override", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_UPDATE_OVERRIDE,
+        strlen(_EVENTS_DB_SQLITE_UPDATE_OVERRIDE) + 1,
+        &update_override, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "update_override", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_DELETE_OVERRIDE,
+        strlen(_EVENTS_DB_SQLITE_DELETE_OVERRIDE) + 1,
+        &delete_override, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "delete_override", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
 }
 
 void csEventsDb_sqlite::Drop(void)
 {
-    sql.str("");
-    sql << "DROP TABLE IF EXISTS alerts;";
-    Exec(csEventsDb_sqlite_exec);
-    sql.str("");
-    sql << "DROP TABLE IF EXISTS stamps;";
-    Exec(csEventsDb_sqlite_exec);
-    sql.str("");
-    sql << "DROP TABLE IF EXISTS groups;";
-    Exec(csEventsDb_sqlite_exec);
-    sql.str("");
-    sql << "DROP TABLE IF EXISTS types;";
-    Exec(csEventsDb_sqlite_exec);
+    vector<string> tables;
+    tables.push_back("alerts");
+    tables.push_back("stamps");
+    tables.push_back("groups");
+    tables.push_back("types");
+    tables.push_back("overrides");
+
+    for (vector<string>::iterator i = tables.begin(); i != tables.end(); i++) {
+        sql.str("");
+        sql << "DROP TABLE IF EXISTS " << (*i) << ';';
+        Exec(csEventsDb_sqlite_exec);
+    }
 }
 
 int64_t csEventsDb_sqlite::GetLastId(const string &table)
@@ -650,11 +726,6 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
     }
 }
 
-void csEventsDb_sqlite::UpdateAlert(const csEventsAlert &alert)
-{
-    csLog::Log(csLog::Debug, "%s:%d", __PRETTY_FUNCTION__, __LINE__);
-}
-
 void csEventsDb_sqlite::PurgeAlerts(const csEventsAlert &alert, time_t age)
 {
     int rc, index = 0;
@@ -831,6 +902,184 @@ uint32_t csEventsDb_sqlite::SelectTypes(csAlertIdMap *result)
     Exec(csEventsDb_sqlite_select_types, (void *)result);
 
     return (uint32_t)result->size();
+}
+
+uint32_t csEventsDb_sqlite::SelectOverride(uint32_t type)
+{
+    int rc, index;
+    uint32_t level = csEventsAlert::csAF_NULL;
+
+    try {
+        // Type
+        index = sqlite3_bind_parameter_index(select_override, "@type");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+        if ((rc = sqlite3_bind_int64(select_override, index,
+            static_cast<sqlite3_int64>(type))) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "select_override", "type", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        do {
+            rc = sqlite3_step(select_override);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            if (rc == SQLITE_ROW) {
+                level = static_cast<uint32_t>(sqlite3_column_int64(select_override, 0));
+                break;
+            }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
+                __PRETTY_FUNCTION__, "select_override", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(select_override);
+    }
+    catch (csException &e) {
+        sqlite3_reset(select_override);
+        throw;
+    }
+
+    return level;
+}
+
+uint32_t csEventsDb_sqlite::SelectOverrides(map<uint32_t, uint32_t> *result)
+{
+    sql.str("");
+    sql << _EVENTS_DB_SQLITE_SELECT_OVERRIDES;
+
+    Exec(csEventsDb_sqlite_select_overrides, (void *)result);
+
+    return (uint32_t)result->size();
+}
+
+void csEventsDb_sqlite::InsertOverride(uint32_t type, uint32_t level)
+{
+    int rc, index;
+
+    try {
+        // Type
+        index = sqlite3_bind_parameter_index(insert_override, "@type");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+        if ((rc = sqlite3_bind_int64(insert_override,
+            index, static_cast<sqlite3_int64>(type))) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "insert_override", "type", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+        // Level
+        index = sqlite3_bind_parameter_index(insert_override, "@level");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: level");
+        if ((rc = sqlite3_bind_int64(insert_override,
+            index, static_cast<sqlite3_int64>(level))) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "insert_override", "flags", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        do {
+            rc = sqlite3_step(insert_override);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
+                __PRETTY_FUNCTION__, "insert_override", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(insert_override);
+    }
+    catch (csException &e) {
+        sqlite3_reset(insert_override);
+        throw;
+    }
+}
+
+void csEventsDb_sqlite::UpdateOverride(uint32_t type, uint32_t level)
+{
+    int rc, index;
+
+    try {
+        // Type
+        index = sqlite3_bind_parameter_index(update_override, "@type");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+        if ((rc = sqlite3_bind_int64(update_override,
+            index, static_cast<sqlite3_int64>(type))) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "update_override", "type", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+        // Level
+        index = sqlite3_bind_parameter_index(update_override, "@level");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: level");
+        if ((rc = sqlite3_bind_int64(update_override,
+            index, static_cast<sqlite3_int64>(level))) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "update_override", "level", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        do {
+            rc = sqlite3_step(update_override);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
+                __PRETTY_FUNCTION__, "update_override", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(update_override);
+    }
+    catch (csException &e) {
+        sqlite3_reset(update_override);
+        throw;
+    }
+}
+
+void csEventsDb_sqlite::DeleteOverride(uint32_t type)
+{
+    int rc, index = 0;
+
+    try {
+        // Type
+        index = sqlite3_bind_parameter_index(delete_override, "@type");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: type");
+        if ((rc = sqlite3_bind_int64(delete_override,
+            index, static_cast<sqlite3_int64>(type))) != SQLITE_OK) {
+            csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                __PRETTY_FUNCTION__, "delete_override", "type", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        // Run delete type
+        do {
+            rc = sqlite3_step(delete_override);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(delete_override);
+    }
+    catch (csException &e) {
+        sqlite3_reset(delete_override);
+        throw;
+    }
 }
 
 void csEventsDb_sqlite::Exec(int (*callback)(void *, int, char**, char **), void *param)

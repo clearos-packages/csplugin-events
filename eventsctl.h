@@ -29,6 +29,8 @@ public:
         CTLM_MARK_RESOLVED,
         CTLM_TYPE_REGISTER,
         CTLM_TYPE_DEREGISTER,
+        CTLM_OVERRIDE_SET,
+        CTLM_OVERRIDE_CLEAR,
     };
 
     csEventsCtl();
