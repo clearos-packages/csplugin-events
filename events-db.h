@@ -57,7 +57,7 @@ public:
     virtual void DeleteType(const string &tag) { }
     virtual uint32_t SelectTypes(map<uint32_t, string> *result) { return 0; }
 
-    virtual uint32_t SelectOverride(uint32_t type) { }
+    virtual uint32_t SelectOverride(uint32_t type) { return 0; }
     virtual uint32_t SelectOverrides(map<uint32_t, uint32_t> *result) { return 0; }
     virtual void InsertOverride(uint32_t type, uint32_t level) { }
     virtual void UpdateOverride(uint32_t type, uint32_t level) { }
