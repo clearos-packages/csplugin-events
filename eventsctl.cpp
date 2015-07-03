@@ -402,11 +402,32 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
     uint32_t type_id = 0;
 
     events_db = new csEventsDb_sqlite(events_conf->GetSqliteDbFilename());
-    events_db->Open();
-    if (events_conf->InitDb()) events_db->Drop();
-    events_db->Create();
-    events_db->SelectTypes(&alert_types);
-    events_conf->MergeRegisteredAlertTypes(alert_types);
+
+    try {
+        events_db->Open();
+    } catch (csEventsDbException &e) {
+        csLog::Log(csLog::Error, "Database exception: open: %s", e.what());
+        throw;
+    }
+        if (events_conf->InitDb()) events_db->Drop();
+    try {
+        events_db->Create();
+    } catch (csEventsDbException &e) {
+        csLog::Log(csLog::Error, "Database exception: create: %s", e.what());
+        throw;
+    }
+    try {
+        events_db->SelectTypes(&alert_types);
+    } catch (csEventsDbException &e) {
+        csLog::Log(csLog::Error, "Database exception: select types: %s", e.what());
+        throw;
+    }
+    try {
+        events_conf->MergeRegisteredAlertTypes(alert_types);
+    } catch (csEventsDbException &e) {
+        csLog::Log(csLog::Error, "Database exception: merge types: %s", e.what());
+        throw;
+    }
 
     if (mode == CTLM_SEND || mode == CTLM_MARK_RESOLVED || mode == CTLM_LIST_ALERTS ||
         mode == CTLM_TYPE_REGISTER || mode == CTLM_TYPE_DEREGISTER ||

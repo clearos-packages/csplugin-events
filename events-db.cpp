@@ -1084,11 +1084,19 @@ void csEventsDb_sqlite::DeleteOverride(uint32_t type)
 
 void csEventsDb_sqlite::Exec(int (*callback)(void *, int, char**, char **), void *param)
 {
+    int rc;
+
     csLog::Log(csLog::Debug, "%s:%d: %p: %s",
         __PRETTY_FUNCTION__, __LINE__, handle, sql.str().c_str());
 
     char *es = NULL;
-    int rc = sqlite3_exec(handle, sql.str().c_str(), callback, param, &es);
+    do {
+        rc = sqlite3_exec(handle, sql.str().c_str(), callback, param, &es);
+        if (rc == SQLITE_BUSY) usleep(5000);
+        else break;
+    }
+    while (rc != SQLITE_OK);
+
     if (rc != SQLITE_OK) {
         errstr.str("");
         errstr << es;
