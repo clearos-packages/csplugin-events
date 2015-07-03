@@ -262,6 +262,8 @@ void *csPluginEvents::Entry(void)
         if (event != NULL) {
             switch (event->GetId()) {
             case csEVENT_QUIT:
+                purge_timer->Stop();
+                sysinfo_timer->Stop();
                 csLog::Log(csLog::Debug, "%s: Terminated.", name.c_str());
                 run = false;
                 break;
@@ -289,6 +291,7 @@ void *csPluginEvents::Entry(void)
     }
 
     delete purge_timer;
+    delete sysinfo_timer;
 
     return NULL;
 }
