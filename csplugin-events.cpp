@@ -542,10 +542,12 @@ void csPluginEvents::ProcessSysinfoRefresh(void)
                 }
                 vol_used_pct = ((float)fs_info.f_blocks - (float)fs_info.f_bavail) *
                     100.0f / (float)fs_info.f_blocks;
+#if 0
                 csLog::Log(csLog::Debug,
                     "%s: volume %s, used: %.02f%%",
                     name.c_str(), (*j)->path.c_str(),
                     fs_info.f_blocks, vol_used_pct);
+#endif
                 ProcessSysinfoThreshold(i->first, (*j), vol_used_pct);
                 break;
             case csEventsAlertSourceConfig_sysinfo::csSIK_NULL:
@@ -625,8 +627,7 @@ void csPluginEvents::ProcessSysinfoThreshold(
             config->trigger_active = false;
             events_db->MarkAsResolved(config->type);
             csLog::Log(csLog::Debug,
-                "%s: Auto-resolved sysinfo alert",
-                name.c_str());
+                "%s: Auto-resolved sysinfo alert", name.c_str());
         }
     }
 }
