@@ -3,7 +3,7 @@
 
 Name: csplugin-events
 Version: 1.0
-Release: 18%{dist}
+Release: 19%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins
@@ -82,7 +82,7 @@ cp -av deploy/events.d ${RPM_BUILD_ROOT}/%{_sysconfdir}/clearos
 %config %{_sysconfdir}/clearsync.d/csplugin-events.conf
 %{_libdir}/libcsplugin-events.so*
 %attr(770,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/
-%attr(660,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/events.db
+%config %attr(660,clearsync,webconfig) %{_localstatedir}/lib/csplugin-events/events.db
 %{_bindir}/eventsctl
 %config %attr(644,root,root) %{_sysconfdir}/rsyslog.d/10-clearsync.conf
 %config(noreplace) %attr(644,root,root) %{_sysconfdir}/clearos/events.d/*.conf
