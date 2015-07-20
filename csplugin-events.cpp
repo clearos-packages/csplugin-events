@@ -332,7 +332,7 @@ void csPluginEvents::ProcessEventSelect(fd_set &fds)
 
                     csEventsAlert alert;
                     alert.SetType((*j)->type);
-                    alert.SetFlag((*j)->level);
+                    alert.SetFlags((*j)->level);
                     if ((*j)->auto_resolve)
                         alert.SetFlag(csEventsAlert::csAF_FLG_AUTO_RESOLVE);
                     alert.SetDescription(text);
@@ -573,7 +573,7 @@ void csPluginEvents::ProcessSysinfoThreshold(
         else if (time(NULL) - config->trigger_start_time > (time_t)config->duration) {
             csEventsAlert alert;
             alert.SetType(config->type);
-            alert.SetFlag(config->level);
+            alert.SetFlags(config->level);
             if (config->auto_resolve)
                 alert.SetFlag(csEventsAlert::csAF_FLG_AUTO_RESOLVE);
             config->trigger_active = true;
