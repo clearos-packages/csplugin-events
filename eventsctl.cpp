@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
     for (optind = 1;; ) {
         int o = 0;
         if ((rc = getopt_long(argc, argv,
-            "Vc:dh?st:u:U:b:o:rl:LRDSC", options, &o)) == -1) break;
+            "Vc:dh?st:u:U:b:o:rl:LRDSCa", options, &o)) == -1) break;
         switch (rc) {
         case 'V':
             usage(0, true);

@@ -213,6 +213,11 @@ DELETE FROM stamps \
 WHERE stamp < @max_age \
 ;"
 
+#define _EVENTS_DB_SQLITE_DELETE_STAMP "\
+DELETE FROM stamps \
+WHERE aid = @aid \
+;"
+
 #define _EVENTS_DB_SQLITE_DELETE_TYPE "\
 DELETE FROM types \
 WHERE tag = @tag \

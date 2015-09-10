@@ -155,7 +155,7 @@ static int csEventsDb_sqlite_select_overrides(
 csEventsDb_sqlite::csEventsDb_sqlite(const string &db_filename)
     : csEventsDb(csDBT_SQLITE), handle(NULL),
     insert_alert(NULL), update_alert(NULL), purge_alerts(NULL),
-    insert_stamp(NULL), purge_stamps(NULL),
+    insert_stamp(NULL), delete_stamp(NULL), purge_stamps(NULL),
     last_id(NULL), mark_resolved(NULL), select_by_hash(NULL),
     insert_type(NULL), delete_type(NULL), select_override(NULL),
     insert_override(NULL), update_override(NULL), delete_override(NULL),
@@ -207,6 +207,8 @@ void csEventsDb_sqlite::Close(void)
         sqlite3_finalize(purge_alerts);
     if (insert_stamp != NULL)
         sqlite3_finalize(insert_stamp);
+    if (delete_stamp != NULL)
+        sqlite3_finalize(delete_stamp);
     if (purge_stamps != NULL)
         sqlite3_finalize(purge_stamps);
     if (last_id != NULL)
@@ -312,6 +314,16 @@ void csEventsDb_sqlite::Create(void)
     if (rc != SQLITE_OK) {
         csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
             __PRETTY_FUNCTION__, "insert_stamp", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_DELETE_STAMP,
+        strlen(_EVENTS_DB_SQLITE_DELETE_STAMP) + 1,
+        &delete_stamp, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "delete_stamp", sqlite3_errstr(rc));
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
 
@@ -686,6 +698,34 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
     }
 
     try {
+        // Purge any previoius stamp entries for "auto-resolve" alerts?
+        if (hash_id >= 0 && alert.GetFlags() & csEventsAlert::csAF_FLG_AUTO_RESOLVE) {
+            // ID
+            index = sqlite3_bind_parameter_index(delete_stamp, "@aid");
+            if (index == 0) throw csException(EINVAL, "SQL parameter missing: aid");
+            if ((rc = sqlite3_bind_int64(delete_stamp,
+                index, static_cast<sqlite3_int64>(alert.GetId()))) != SQLITE_OK) {
+                csLog::Log(csLog::Debug, "%s: sqlite3_bind(%s, %s): %s",
+                    __PRETTY_FUNCTION__, "delete_stamp", "aid", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+
+            do {
+                rc = sqlite3_step(delete_stamp);
+                if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            }
+            while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+            if (rc == SQLITE_ERROR) {
+                rc = sqlite3_errcode(handle);
+                csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
+                    __PRETTY_FUNCTION__, "delete_stamp", sqlite3_errstr(rc));
+                throw csEventsDbException(rc, sqlite3_errstr(rc));
+            }
+
+            sqlite3_reset(delete_stamp);
+        }
+
         // ID
         index = sqlite3_bind_parameter_index(insert_stamp, "@aid");
         if (index == 0) throw csException(EINVAL, "SQL parameter missing: aid");
@@ -721,6 +761,7 @@ void csEventsDb_sqlite::InsertAlert(csEventsAlert &alert)
         sqlite3_reset(insert_stamp);
     }
     catch (csException &e) {
+        sqlite3_reset(delete_stamp);
         sqlite3_reset(insert_stamp);
         throw;
     }
