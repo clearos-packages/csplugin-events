@@ -3,7 +3,7 @@
 
 Name: csplugin-events
 Version: 1.0
-Release: 21%{dist}
+Release: 22%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins
@@ -11,6 +11,7 @@ Packager: ClearFoundation
 Source: %{name}-%{version}.tar.gz
 BuildRoot: /var/tmp/%{name}-%{version}
 Requires: clearsync >= 1.8
+Requires: webconfig-httpd
 BuildRequires: clearsync-devel >= 2.0
 BuildRequires: expat-devel
 BuildRequires: sqlite-devel
