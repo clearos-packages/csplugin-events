@@ -3,7 +3,7 @@
 
 Name: csplugin-events
 Version: 1.0
-Release: 23%{dist}
+Release: 24%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins

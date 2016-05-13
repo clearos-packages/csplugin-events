@@ -89,6 +89,7 @@ public:
 
     void InsertType(const string &tag, const string &basename);
     void DeleteType(const string &tag);
+    uint32_t SelectType(const string &tag);
     uint32_t SelectTypes(map<uint32_t, string> *result);
 
     uint32_t SelectOverride(uint32_t type);
@@ -112,6 +113,7 @@ protected:
     sqlite3_stmt *select_by_hash;
     sqlite3_stmt *insert_type;
     sqlite3_stmt *delete_type;
+    sqlite3_stmt *select_type;
     sqlite3_stmt *select_override;
     sqlite3_stmt *insert_override;
     sqlite3_stmt *update_override;

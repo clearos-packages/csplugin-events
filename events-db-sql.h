@@ -106,6 +106,12 @@ FROM sqlite_sequence \
 WHERE name = @table_name \
 ;"
 
+#define _EVENTS_DB_SQLITE_SELECT_TYPE "\
+SELECT id \
+FROM types \
+WHERE tag = @tag \
+;"
+
 #define _EVENTS_DB_SQLITE_SELECT_TYPES "\
 SELECT id, tag \
 FROM types \

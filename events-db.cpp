@@ -157,8 +157,9 @@ csEventsDb_sqlite::csEventsDb_sqlite(const string &db_filename)
     insert_alert(NULL), update_alert(NULL), purge_alerts(NULL),
     insert_stamp(NULL), delete_stamp(NULL), purge_stamps(NULL),
     last_id(NULL), mark_resolved(NULL), select_by_hash(NULL),
-    insert_type(NULL), delete_type(NULL), select_override(NULL),
-    insert_override(NULL), update_override(NULL), delete_override(NULL),
+    insert_type(NULL), delete_type(NULL), select_type(NULL),
+    select_override(NULL), insert_override(NULL),
+    update_override(NULL), delete_override(NULL),
     db_filename(db_filename)
 {
     csLog::Log(csLog::Debug, "SQLite version: %s", sqlite3_libversion());
@@ -221,6 +222,8 @@ void csEventsDb_sqlite::Close(void)
         sqlite3_finalize(insert_type);
     if (delete_type != NULL)
         sqlite3_finalize(delete_type);
+    if (select_type != NULL)
+        sqlite3_finalize(select_type);
     if (select_override != NULL)
         sqlite3_finalize(select_override);
     if (insert_override != NULL)
@@ -364,6 +367,16 @@ void csEventsDb_sqlite::Create(void)
     if (rc != SQLITE_OK) {
         csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
             __PRETTY_FUNCTION__, "delete_type", sqlite3_errstr(rc));
+        throw csEventsDbException(rc, sqlite3_errstr(rc));
+    }
+
+    rc = sqlite3_prepare_v2(handle,
+        _EVENTS_DB_SQLITE_SELECT_TYPE,
+        strlen(_EVENTS_DB_SQLITE_SELECT_TYPE) + 1,
+        &select_type, NULL);
+    if (rc != SQLITE_OK) {
+        csLog::Log(csLog::Debug, "%s: sqlite3_prepare(%s): %s",
+            __PRETTY_FUNCTION__, "select_type", sqlite3_errstr(rc));
         throw csEventsDbException(rc, sqlite3_errstr(rc));
     }
 
@@ -868,6 +881,12 @@ void csEventsDb_sqlite::InsertType(const string &tag, const string &basename)
 {
     int rc, index = 0;
 
+    if (SelectType(tag) != 0) {
+        csLog::Log(csLog::Debug, "%s:%d: Custom type already registered: %s",
+            __PRETTY_FUNCTION__, __LINE__, tag.c_str());
+        return;
+    }
+
     try {
         // Tag
         index = sqlite3_bind_parameter_index(insert_type, "@tag");
@@ -933,6 +952,46 @@ void csEventsDb_sqlite::DeleteType(const string &tag)
         sqlite3_reset(delete_type);
         throw;
     }
+}
+
+uint32_t csEventsDb_sqlite::SelectType(const string &tag)
+{
+    int rc, index;
+    uint32_t id = 0;
+
+    try {
+        // Type
+        index = sqlite3_bind_parameter_index(select_type, "@tag");
+        if (index == 0) throw csException(EINVAL, "SQL parameter missing: tag");
+        if ((rc = sqlite3_bind_text(select_type, index,
+            tag.c_str(), tag.length(), SQLITE_TRANSIENT)) != SQLITE_OK)
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+
+        do {
+            rc = sqlite3_step(select_type);
+            if (rc == SQLITE_BUSY) { usleep(5000); continue; }
+            if (rc == SQLITE_ROW) {
+                id = static_cast<uint32_t>(sqlite3_column_int64(select_type, 0));
+                break;
+            }
+        }
+        while (rc != SQLITE_DONE && rc != SQLITE_ERROR);
+
+        if (rc == SQLITE_ERROR) {
+            rc = sqlite3_errcode(handle);
+            csLog::Log(csLog::Debug, "%s: sqlite3_step(%s): %s",
+                __PRETTY_FUNCTION__, "select_type", sqlite3_errstr(rc));
+            throw csEventsDbException(rc, sqlite3_errstr(rc));
+        }
+
+        sqlite3_reset(select_type);
+    }
+    catch (csException &e) {
+        sqlite3_reset(select_type);
+        throw;
+    }
+
+    return id;
 }
 
 uint32_t csEventsDb_sqlite::SelectTypes(csAlertIdMap *result)
