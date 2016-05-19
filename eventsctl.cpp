@@ -442,10 +442,10 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
             break;
         case csSMPR_VERSION_MISMATCH:
             csLog::Log(csLog::Debug, "Protocol version: mis-match");
-            return 1;
+            return CTLC_PROTOCOL;
         default:
             csLog::Log(csLog::Debug, "Unexpected reply.");
-            return 1;
+            return CTLC_PROTOCOL;
         }
     }
 
@@ -555,7 +555,7 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
             } catch (csException &e) {
                 csLog::Log(csLog::Error, "Unknown alert type: %s",
                     type.c_str());
-                exit(1);
+                exit(CTLC_INVALID_ALERT_TYPE);
             }
 
             if (mode == CTLM_OVERRIDE_SET)
@@ -568,17 +568,20 @@ int csEventsCtl::Exec(csEventsCtlMode mode,
         default:
             csLog::Log(csLog::Error, "Invalid mode or no mode specified.");
             csLog::Log(csLog::Info, "Try --help for usage information.");
-            return 1;
+            return CTLC_EXCEPTION;
         }
     } catch (csEventsSocketException &e) {
         csLog::Log(csLog::Error, "Exception: %s: %s", e.estring.c_str(), e.what());
-        return 1;
+        return CTLC_SOCKET;
+    } catch (csEventsInvalidAlertTypeException &e) {
+        csLog::Log(csLog::Error, "Exception: %s", e.estring.c_str());
+        return CTLC_INVALID_ALERT_TYPE;
     } catch (csException &e) {
         csLog::Log(csLog::Error, "Exception: %s", e.estring.c_str());
-        return 1;
+        return CTLC_EXCEPTION;
     }
 
-    return 0;
+    return CTLC_SUCCESS;
 }
 
 // vi: expandtab shiftwidth=4 softtabstop=4 tabstop=4

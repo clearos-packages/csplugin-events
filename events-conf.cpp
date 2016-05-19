@@ -587,7 +587,7 @@ uint32_t csEventsConf::GetAlertId(const string &type)
         break;
     }
     if (i == alert_types.end())
-        throw csException(ENOENT, "No such Alert type");
+        throw csEventsInvalidAlertTypeException();
     return i->first;
 }
 
@@ -595,7 +595,7 @@ string csEventsConf::GetAlertType(uint32_t id)
 {
     csAlertIdMap::iterator i = alert_types.find(id);
     if (i == alert_types.end())
-        throw csException(ENOENT, "No such Alert ID");
+        throw csEventsInvalidAlertIdException();
     return i->second;
 }
 

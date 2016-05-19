@@ -26,6 +26,20 @@
 
 typedef map<uint32_t, string> csAlertIdMap;
 
+class csEventsInvalidAlertIdException : public csException
+{
+public:
+    explicit csEventsInvalidAlertIdException()
+        : csException(ENOENT, "No such Alert ID") { }
+};
+
+class csEventsInvalidAlertTypeException : public csException
+{
+public:
+    explicit csEventsInvalidAlertTypeException()
+        : csException(ENOENT, "No such Alert type") { }
+};
+
 class csEventsAlertPatternExistsException : public csException
 {
 public:

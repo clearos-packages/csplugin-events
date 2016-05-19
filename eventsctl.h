@@ -33,6 +33,15 @@ public:
         CTLM_OVERRIDE_CLEAR,
     };
 
+    enum csEventsCtlExitCode
+    {
+        CTLC_SUCCESS,
+        CTLC_EXCEPTION,
+        CTLC_SOCKET,
+        CTLC_PROTOCOL,
+        CTLC_INVALID_ALERT_TYPE,
+    };
+
     csEventsCtl();
     virtual ~csEventsCtl();
 
