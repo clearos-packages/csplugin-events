@@ -3,7 +3,7 @@
 
 Name: @PACKAGE_TARNAME@
 Version: @PACKAGE_VERSION@
-Release: 26%{dist}
+Release: 27%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins
