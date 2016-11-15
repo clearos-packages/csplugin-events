@@ -2,8 +2,8 @@
 %{!?_with_pic: %{!?_without_pic: %define _with_pic --with-pic=inih}}
 
 Name: csplugin-events
-Version: 1.0
-Release: 27%{dist}
+Version: 1.1
+Release: 1%{dist}
 Vendor: ClearFoundation
 License: GPL
 Group: System/Plugins

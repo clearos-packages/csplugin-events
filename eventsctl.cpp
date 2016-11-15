@@ -120,7 +120,7 @@ static void usage(int rc = 0, bool version = false)
 
         csLog::Log(csLog::Info, "\nList all alerts:");
         csLog::Log(csLog::Info,
-            "  -l, --list");
+            "  -L, --list");
 
         csLog::Log(csLog::Info, "\nCustom type registration:");
         csLog::Log(csLog::Info,
@@ -346,9 +346,9 @@ int main(int argc, char *argv[])
 
         locale lang;
         for (string::iterator i = alert_type.begin(); i != alert_type.end(); i++) {
-            if (!isalpha(*i, lang) && (*i) != '_') {
+            if (!isalnum(*i, lang) && (*i) != '_') {
                 csLog::Log(csLog::Error,
-                    "Illegal character in alert type; valid characters: A-Z and '_'");
+                    "Illegal character in alert type; valid characters: A-Z, 0-9, and '_'");
                 exit(1);
             }
         }
